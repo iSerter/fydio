@@ -25,6 +25,7 @@
     "db:reset": "pnpm --filter @fydio/web db:reset",
     "db:seed": "pnpm --filter @fydio/web db:seed",
     "db:types": "pnpm --filter @fydio/web db:types",
+    "db:test": "bash scripts/db-test.sh",
     "bootstrap": "bash scripts/bootstrap.sh"
   },
   "devDependencies": {

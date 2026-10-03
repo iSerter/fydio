@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "db:migrate": "bash ../../scripts/db-migrate.sh",
-    "db:reset": "supabase db reset --local",
+    "db:reset": "bash ../../scripts/db-reset.sh",
     "db:seed": "bash ../../scripts/db-seed.sh",
     "db:types": "bash ../../scripts/db-types.sh"
   },

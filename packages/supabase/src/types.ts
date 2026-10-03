@@ -16,6 +16,16 @@ import type { Database as Generated } from './types.generated.js'
 export type Database = Generated
 
 /**
+ * Supabase's own table/enum lookup helpers.
+ *
+ * Re-exported so callers can write `Tables<'content_entries'>` without importing the
+ * generated file directly. The generated file is gitignored (it is a build artefact of
+ * the live schema), so reaching into it would be reaching into something a fresh
+ * checkout does not have.
+ */
+export type { Tables, TablesInsert, TablesUpdate, Enums, Json } from './types.generated.js'
+
+/**
  * The Supabase client as Fydio uses it, pinned to the `public` schema.
  *
  * Written out rather than derived with `ReturnType<typeof createClient>`: the
@@ -24,3 +34,43 @@ export type Database = Generated
  * unsatisfiable assignment under `exactOptionalPropertyTypes`.
  */
 export type FydioClient = SupabaseClient<Database, 'public', 'public'>
+
+export type {
+  ContentEntry,
+  ContentHashtag,
+  CreditBalance,
+  CreditKind,
+  CreditLedgerEntry,
+  DurationBand,
+  DurationEvent,
+  EligibilityState,
+  EntryState,
+  Feedback,
+  FeedbackRating,
+  FeedImpression,
+  FeedSignal,
+  FeedSignalKind,
+  Friendship,
+  FriendshipState,
+  Hashtag,
+  Invite,
+  LedgerStatus,
+  ModerationAction,
+  ModerationReport,
+  Mute,
+  OutboundClick,
+  PlatformKind,
+  PreviewState,
+  Profile,
+  ProfileHashtag,
+  ProfileLink,
+  ProfileReputationView,
+  ProfileRole,
+  RankedEntry,
+  ReputationKind,
+  ReputationLedgerEntry,
+  ReputationSummary,
+  ReportState,
+  ReportTarget,
+  WeeklyAllowanceRun,
+} from './db-types.js'
