@@ -1,0 +1,81 @@
+/**
+ * Fydio Tailwind v4 preset.
+ *
+ * Tailwind v4 is CSS-first: this file is imported by the app's globals.css via
+ * `@import '@fydio/config-tailwind/preset.css'`, and theme tokens are declared
+ * with `@theme` rather than a JS config object.
+ *
+ * Semantic tokens only — components should never reach for a raw palette colour
+ * directly, because the dark variants below have to stay in lockstep.
+ */
+
+@theme {
+  /* Surfaces */
+  --color-canvas: oklch(99% 0.002 250);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-muted: oklch(96.5% 0.004 250);
+  --color-border: oklch(90% 0.005 250);
+
+  /* Text */
+  --color-ink: oklch(21% 0.01 250);
+  --color-ink-muted: oklch(52% 0.012 250);
+  --color-ink-subtle: oklch(65% 0.01 250);
+
+  /* Brand — a calm indigo; Fydio is a private tool, not a social feed. */
+  --color-brand: oklch(52% 0.16 265);
+  --color-brand-hover: oklch(46% 0.16 265);
+  --color-brand-soft: oklch(95% 0.03 265);
+
+  /* Semantic state */
+  --color-positive: oklch(60% 0.14 150);
+  --color-warning: oklch(72% 0.15 75);
+  --color-critical: oklch(55% 0.19 25);
+
+  /* Typography */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Spacing rhythm */
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+
+  /* Motion — short and few; motion should never delay reading content. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Dark mode is class-driven (`.dark` on <html>) so a user preference can be
+ * resolved server-side without a flash of the wrong theme.
+ */
+@layer base {
+  .dark {
+    --color-canvas: oklch(18% 0.012 250);
+    --color-surface: oklch(22% 0.014 250);
+    --color-surface-muted: oklch(26% 0.015 250);
+    --color-border: oklch(32% 0.016 250);
+
+    --color-ink: oklch(96% 0.004 250);
+    --color-ink-muted: oklch(76% 0.012 250);
+    --color-ink-subtle: oklch(62% 0.012 250);
+
+    --color-brand: oklch(70% 0.14 265);
+    --color-brand-hover: oklch(76% 0.14 265);
+    --color-brand-soft: oklch(30% 0.06 265);
+
+    --color-positive: oklch(72% 0.14 150);
+    --color-warning: oklch(80% 0.14 75);
+    --color-critical: oklch(68% 0.17 25);
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}

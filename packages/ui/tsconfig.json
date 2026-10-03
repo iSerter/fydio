@@ -1,0 +1,10 @@
+{
+  "extends": "@fydio/config-typescript/nextjs.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

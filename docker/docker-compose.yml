@@ -1,0 +1,486 @@
+# Fydio — self-hosted Supabase stack
+#
+# Vendored from supabase/supabase `docker/docker-compose.yml` and trimmed for a
+# laptop (see README.md for the pinned image versions):
+#
+#   • `vector` and `analytics` (Logflare) removed — the two heaviest services,
+#     and Fydio needs neither log shipping nor the analytics API.
+#   • `db` PGDATA and Storage's file backend moved to **named volumes**. The
+#     Storage file backend misbehaves on macOS bind mounts (uploads land in the
+#     container overlay and vanish on rebuild), and a bind-mounted Postgres
+#     cluster can be corrupted by an unclean shutdown.
+#   • Container names namespaced `fydio-*` so this stack can run alongside
+#     another Supabase stack on the same machine.
+#
+# Ports are NOT published here — `docker-compose.dev.yml` does that, so this file
+# stays usable as-is for a single-host deployment behind a reverse proxy.
+#
+# Secrets come from `.env`; run `pnpm secrets:generate` to populate it.
+
+name: fydio
+
+services:
+  studio:
+    container_name: fydio-studio
+    image: supabase/studio:2026.09.07-sha-7996410
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://localhost:3000/api/platform/profile'').then((r) => {if (r.status !== 200) throw new Error(r.status)})"',
+        ]
+      timeout: 10s
+      interval: 5s
+      retries: 5
+      start_period: 30s
+    environment:
+      # Listen on all IPv4 interfaces so the published port is reachable.
+      HOSTNAME: '0.0.0.0'
+
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER_READ_WRITE: postgres
+
+      PG_META_CRYPTO_KEY: ${PG_META_CRYPTO_KEY}
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
+      PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
+      PGRST_DB_EXTRA_SEARCH_PATH: ${PGRST_DB_EXTRA_SEARCH_PATH:-public}
+
+      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION:-Fydio}
+      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT:-Fydio}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      SUPABASE_URL: http://api-gw:8000
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+
+      # Fydio has no Logflare, so Studio's log viewer stays off.
+      ENABLED_FEATURES_LOGS_ALL: 'false'
+
+      SNIPPETS_MANAGEMENT_FOLDER: /app/snippets
+      EDGE_FUNCTIONS_MANAGEMENT_FOLDER: /app/edge-functions
+    volumes:
+      - ./volumes/snippets:/app/snippets:z
+      - ./volumes/functions:/app/edge-functions:ro,z
+    networks:
+      - fydio
+
+  # Envoy is the API gateway. Kong remains available via `run.sh config add kong`
+  # upstream, but Fydio needs one gateway and Envoy is the maintained default.
+  api-gw:
+    container_name: fydio-api-gw
+    image: envoyproxy/envoy:v1.39.1
+    restart: unless-stopped
+    networks:
+      fydio:
+        # Aliases so internal config referencing `kong` still resolves.
+        aliases:
+          - envoy
+          - kong
+    healthcheck:
+      # TCP check: this image has no curl or wget.
+      test: ['CMD-SHELL', "timeout 1 bash -c '</dev/tcp/127.0.0.1/8000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      studio:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+      rest:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    volumes:
+      - ./volumes/api/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./volumes/api/envoy/cds.yaml:/etc/envoy/cds.yaml:ro
+      - ./volumes/api/envoy/lds.template.yaml:/etc/envoy/lds.template.yaml:ro
+      - ./volumes/api/envoy/docker-entrypoint.sh:/docker-entrypoint.sh:ro
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      ANON_KEY_ASYMMETRIC: ${ANON_KEY_ASYMMETRIC:-}
+      SERVICE_ROLE_KEY_ASYMMETRIC: ${SERVICE_ROLE_KEY_ASYMMETRIC:-}
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
+      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+    entrypoint: ['/bin/sh', '/docker-entrypoint.sh']
+
+  auth:
+    container_name: fydio-auth
+    image: supabase/gotrue:v2.196.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # This image ships wget, not curl.
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:9999/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL}
+
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS}
+      GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP}
+
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXPIRY}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: ${ENABLE_EMAIL_SIGNUP:-true}
+      GOTRUE_MFA_ENABLED: ${MFA_ENABLED:-false}
+
+      # Dev mail goes to Mailpit; prod uses a real provider (see docker/README.md).
+      GOTRUE_SMTP_HOST: ${SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT}
+      GOTRUE_SMTP_USER: ${SMTP_USER}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME}
+      GOTRUE_SMTP_MAX_FREQUENCY: ${SMTP_MAX_FREQUENCY}
+
+      GOTRUE_EXTERNAL_PHONE_ENABLED: 'false'
+      GOTRUE_SMS_AUTOCONFIRM: 'true'
+
+      GOTRUE_RATE_LIMIT_EMAIL_VERIFICATION: ${GOTRUE_RATE_LIMIT_EMAIL_VERIFICATION:-3}
+      GOTRUE_RATE_LIMIT_EMAIL_SEND: ${GOTRUE_RATE_LIMIT_EMAIL_SEND:-30}
+      GOTRUE_RATE_LIMIT_SMS_SENT: ${GOTRUE_RATE_LIMIT_SMS_SENT:-30}
+
+      GOTRUE_LOG_LEVEL: info
+    networks:
+      - fydio
+
+  rest:
+    container_name: fydio-rest
+    image: postgrest/postgrest:v14.17
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'bash',
+          '-c',
+          'PGRST_DB_URL=postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB} /usr/bin/postgrest --version',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: ${PGRST_DB_USE_LEGACY_GUCS:-false}
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: ${JWT_EXPIRY}
+    networks:
+      - fydio
+
+  realtime:
+    container_name: fydio-realtime
+    image: supabase/realtime:v2.134.10
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # The tenants health endpoint returns 403 without an apikey, so probe the
+      # listener with a TCP check instead of asserting on an authenticated route.
+      test: ['CMD-SHELL', "timeout 1 bash -c '</dev/tcp/127.0.0.1/4000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
+      DB_ENC_KEY: ${REALTIME_DB_ENC_KEY}
+      API_JWT_SECRET: ${JWT_SECRET}
+      METRICS_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      DNS_NODES: "''"
+      RLIMIT_CONFIGS: infinity
+      APP_NAME: realtime
+      SEED_SELF_HOST: true
+      RUN_JANITOR: true
+    volumes:
+      - ./volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
+    networks:
+      - fydio
+
+  storage:
+    container_name: fydio-storage
+    image: supabase/storage-api:v1.74.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      imgproxy:
+        condition: service_started
+    healthcheck:
+      # wget, not curl. The server binds IPv4 only, and `localhost` resolves to
+      # ::1 first in this image, so the probe must use the literal IPv4 loopback.
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:5000/status']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      # Named volume, NOT a bind mount — see the header note.
+      - storage-data:/var/lib/storage
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      FILE_SIZE_LIMIT: ${STORAGE_FILE_SIZE_LIMIT:-52428800}
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      STORAGE_S3_AUTH_HEADER: false
+      STORAGE_S3_AWS_ACCESS_KEY_ID: ${S3_PROTOCOL_ACCESS_KEY_ID:-}
+      STORAGE_S3_AWS_SECRET_ACCESS_KEY: ${S3_PROTOCOL_ACCESS_KEY_SECRET:-}
+      STORAGE_S3_AWS_REGION: ${REGION:-stub}
+      STORAGE_S3_AWS_ENDPOINT: ${S3_PROTOCOL_URL:-}
+      STORAGE_S3_AWS_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-false}
+      STORAGE_S3_ALLOWED_BUCKETS: ${STORAGE_S3_ALLOWED_BUCKETS}
+      IMGPROXY_URL: http://imgproxy:5000
+      IMGPROXY_KEY: ${IMGPROXY_KEY}
+      IMGPROXY_AUTO_WEBP: ${IMGPROXY_AUTO_WEBP:-true}
+      TUS_URL_PATH: /resumable
+    networks:
+      - fydio
+
+  imgproxy:
+    container_name: fydio-imgproxy
+    image: darthsim/imgproxy:v3.31.4
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Minimal image with no curl/wget; bash's /dev/tcp is the only probe
+      # available. imgproxy listens on 8080 by default, not the 5000 Storage uses.
+      test: ['CMD-SHELL', "timeout 1 bash -c '</dev/tcp/127.0.0.1/8080'"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    environment:
+      IMGPROXY_AUTO_WEBP: ${IMGPROXY_AUTO_WEBP:-true}
+    networks:
+      - fydio
+
+  meta:
+    container_name: fydio-meta
+    image: supabase/postgres-meta:v0.99.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # postgres-meta has neither pg_isready nor curl; TCP probe on its own port.
+      test: ['CMD-SHELL', "timeout 1 bash -c '</dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: ${POSTGRES_DB}
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_META_CRYPTO_KEY: ${PG_META_CRYPTO_KEY}
+      PG_META_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
+    networks:
+      - fydio
+
+  functions:
+    container_name: fydio-functions
+    image: supabase/edge-runtime:v1.76.2
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      api-gw:
+        condition: service_healthy
+    healthcheck:
+      # edge-runtime ships neither node nor curl; bash's /dev/tcp is the only
+      # probe available, and 9000 is the runtime's main-service port.
+      test: ['CMD-SHELL', "timeout 1 bash -c '</dev/tcp/127.0.0.1/9000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_URL: http://api-gw:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      SUPABASE_DB_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      VERIFY_JWT: ${FUNCTIONS_VERIFY_JWT}
+      FUNCTIONS_WORKER_COUNT: 1
+      EDGE_RUNTIME_FORWARDED_ALLOW_HEADERS: authorization, x-client-info, apikey, content-profile
+    volumes:
+      - ./volumes/functions:/home/deno/functions:z
+      - deno-cache:/root/.cache/deno
+    networks:
+      - fydio
+    # Required: without `start --main-service` the image runs bare and exits
+    # after printing its CLI help, so the container never serves anything.
+    command:
+      [
+        'start',
+        '--user-worker-request-idle-timeout',
+        '150000',
+        '--main-service',
+        '/home/deno/functions/main',
+      ]
+
+  db:
+    container_name: fydio-db
+    image: supabase/postgres:17.6.1.136
+    restart: unless-stopped
+    ports: [] # published only by the dev overlay
+    volumes:
+      - ./volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
+      # Must be superuser to create the event trigger.
+      - ./volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
+      # Must be superuser to alter reserved roles.
+      - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
+      # Initialises the database settings with JWT_EXP.
+      - ./volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
+      # Creates the `_supabase` database that the pooler and log schemas live in.
+      #
+      # NOTE the directory: `migrate.sh` runs `init-scripts/` and `migrations/`
+      # as two separate, ordered passes, and everything is executed in filename
+      # order within each. Upstream mounts this into `migrations/`, where it runs
+      # *after* the init scripts — so `99-logs.sql` and `99-pooler.sql` connect
+      # to a `_supabase` database that does not exist yet and fail, which aborts
+      # the remaining scripts and silently leaves `authenticator` with the wrong
+      # password. Mounting it as `96-` here puts it before those scripts.
+      - ./volumes/db/_supabase.sql:/docker-entrypoint-initdb.d/init-scripts/96-_supabase.sql:Z
+      # Pooler schema. `logs.sql` is intentionally NOT mounted: it is the
+      # Logflare/analytics bootstrap, and Fydio does not run either.
+      - ./volumes/db/pooler.sql:/docker-entrypoint-initdb.d/init-scripts/99-pooler.sql:Z
+      # Named volume for PGDATA — see the header note.
+      - db-data:/var/lib/postgresql/data
+      # Holds the pgsodium decryption key, which must survive a data wipe.
+      - db-config:/etc/postgresql-custom
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres', '-h', 'localhost']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: ${POSTGRES_PORT}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_EXP: ${JWT_EXPIRY}
+    command: [
+        'postgres',
+        '-c',
+        'config_file=/etc/postgresql/postgresql.conf',
+        # Suppresses Realtime polling queries in the log.
+        '-c',
+        'log_min_messages=fatal',
+      ]
+    networks:
+      - fydio
+
+  # Connection pooler, and the only way to reach Postgres from the host.
+  supavisor:
+    container_name: fydio-pooler
+    image: supabase/supavisor:2.9.12
+    restart: unless-stopped
+    ports: [] # published only by the dev overlay
+    volumes:
+      - ./volumes/pooler/pooler.exs:/etc/pooler/pooler.exs:ro,z
+    healthcheck:
+      test:
+        ['CMD', 'curl', '-sSfL', '--head', '-o', '/dev/null', 'http://127.0.0.1:4000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: ecto://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/_supabase
+      CLUSTER_POSTGRES: 'true'
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY}
+      API_JWT_SECRET: ${JWT_SECRET}
+      METRICS_JWT_SECRET: ${JWT_SECRET}
+      REGION: local
+      ERL_AFLAGS: -proto_dist inet_tcp
+      POOLER_TENANT_ID: ${POOLER_TENANT_ID}
+      POOLER_DEFAULT_POOL_SIZE: ${POOLER_DEFAULT_POOL_SIZE}
+      POOLER_MAX_CLIENT_CONN: ${POOLER_MAX_CLIENT_CONN}
+      POOLER_POOL_MODE: transaction
+      DB_POOL_SIZE: ${POOLER_DB_POOL_SIZE}
+    command:
+      [
+        '/bin/sh',
+        '-c',
+        '/app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server',
+      ]
+    networks:
+      - fydio
+
+networks:
+  fydio:
+    name: fydio
+
+volumes:
+  db-config:
+  db-data:
+  deno-cache:
+  storage-data:

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Fydio",
+  "version": "0.0.1",
+  "description": "Share the content you are viewing with your Fydio circle.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Share to Fydio"
+  },
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

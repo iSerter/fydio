@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js regenerates this on every build; a committed copy just goes stale.
+next-env.d.ts
+
+# Build output
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+*.tsbuildinfo.json
+
+# Turborepo
+.turbo/
+
+# Test output
+coverage/
+.vitest/
+
+# Environment — never commit real secrets. Templates are tracked.
+.env
+.env.local
+.env.*.local
+!.env.example
+!docker/.env.example
+
+# Supabase CLI scratch
+supabase/.temp/
+
+# Generated database types — a build artefact of the schema, not source.
+# Regenerate with `pnpm db:types`; committing a stale copy would silently
+# disagree with the database.
+packages/supabase/src/types.generated.ts
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Misc
+*.pem
+.DS_Store
+# Next.js only reads .env from the app directory; this symlink points it at the
+# single root env so there is still exactly one source of truth.
+apps/*/.env

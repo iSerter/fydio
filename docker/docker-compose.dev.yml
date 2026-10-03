@@ -1,0 +1,69 @@
+# Fydio — local development overlay.
+#
+# Layers dev-only concerns on top of docker-compose.yml:
+#   • publishes the ports a laptop needs (and nothing else)
+#   • adds Mailpit so Auth emails land somewhere inspectable
+#   • points Auth's SMTP at Mailpit
+#
+# Never used in production: it publishes Postgres and Studio on all interfaces
+# with fixed credentials.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait
+
+services:
+  db:
+    ports:
+      # Postgres via the pooler. 54322 is the port the Supabase CLI expects for
+      # `--local`, which is why the db:push/db:reset scripts rely on this port.
+      - '${POSTGRES_HOST_PORT:-54322}:5432'
+
+  supavisor:
+    ports:
+      # Host 5432 is commonly taken by another Postgres on a shared machine, so
+      # the pooler publishes on its own configurable port. The Supabase CLI
+      # expects the database on 54322, which is what `db:` publishes above.
+      - '${POOLER_HOST_PORT:-54324}:5432'
+      - '${POOLER_PROXY_PORT_TRANSACTION:-6543}:6543'
+
+  api-gw:
+    ports:
+      # Kong/Envoy is the only Supabase port the app talks to.
+      - '${API_GW_HTTP_PORT:-8000}:8000/tcp'
+
+  studio:
+    ports:
+      # 3001 rather than the usual 3001 default collides with other projects on a
+      # shared machine; override with STUDIO_HOST_PORT if 3002 is taken too.
+      - '${STUDIO_HOST_PORT:-3002}:3000/tcp'
+
+  auth:
+    environment:
+      GOTRUE_SMTP_HOST: mailpit
+      GOTRUE_SMTP_PORT: 1025
+      GOTRUE_SMTP_USER: ''
+      GOTRUE_SMTP_PASS: ''
+      GOTRUE_SMTP_ADMIN_EMAIL: auth@localhost
+      GOTRUE_SMTP_SENDER_NAME: 'Fydio Dev'
+      # Go duration, not a count — Go's time.ParseDuration rejects a bare number.
+      GOTRUE_SMTP_MAX_FREQUENCY: '1000000h'
+    depends_on:
+      mailpit:
+        condition: service_healthy
+
+  # Dev-only mail sink. Never deployed: it captures every Auth email in
+  # plaintext, which would be a credential leak in production.
+  mailpit:
+    container_name: fydio-mailpit
+    image: axllent/mailpit:v1.28.4
+    restart: unless-stopped
+    ports:
+      - '${MAILPIT_SMTP_HOST_PORT:-1025}:1025'
+      - '${MAILPIT_UI_HOST_PORT:-8025}:8025'
+    healthcheck:
+      # `mailpit readyz` takes no address flags in v1.28; it probes the SMTP and
+      # HTTP listeners it already reports from its own config.
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

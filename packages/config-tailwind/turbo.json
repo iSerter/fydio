@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "//": "This package only ships configuration files; its `build` emits nothing.",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": []
+    }
+  }
+}

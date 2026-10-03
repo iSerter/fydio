@@ -1,0 +1,19 @@
+{
+  "name": "@fydio/config-tailwind",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "exports": {
+    "./preset.css": "./preset.css"
+  },
+  "files": [
+    "preset.css"
+  ],
+  "scripts": {
+    "lint": "echo \"no lint target\"",
+    "typecheck": "echo \"no typecheck target\"",
+    "test": "echo \"no test target\"",
+    "build": "echo \"no build target\"",
+    "clean": "echo \"nothing to clean\""
+  }
+}

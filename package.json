@@ -1,0 +1,35 @@
+{
+  "name": "fydio",
+  "private": true,
+  "packageManager": "pnpm@10.5.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css,yml,yaml}\"",
+    "validate": "turbo run lint typecheck test build",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "dev:stack": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml --env-file docker/.env up -d --wait",
+    "dev:stack:down": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml --env-file docker/.env down",
+    "dev:stack:reset": "pnpm dev:stack:down && pnpm dev:stack && pnpm db:reset",
+    "dev:stack:health": "bash scripts/stack-health.sh",
+    "dev:stack:logs": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml --env-file docker/.env logs -f --tail=100",
+    "secrets:generate": "bash scripts/generate-secrets.sh",
+    "db:migrate": "pnpm --filter @fydio/web db:migrate",
+    "db:reset": "pnpm --filter @fydio/web db:reset",
+    "db:seed": "pnpm --filter @fydio/web db:seed",
+    "db:types": "pnpm --filter @fydio/web db:types",
+    "bootstrap": "bash scripts/bootstrap.sh"
+  },
+  "devDependencies": {
+    "prettier": "3.9.9",
+    "turbo": "2.11.7",
+    "typescript": "5.9.3"
+  }
+}

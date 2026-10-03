@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+@import '@fydio/config-tailwind/preset.css';
+
+/*
+ * Tailwind v4 is CSS-first: content detection is automatic, but it only scans
+ * files it can reach. Listing `sources` explicitly is what lets it find classes
+ * inside `packages/ui` — otherwise every class in the shared components would be
+ * stripped from the production build.
+ */
+@source '../../packages/ui/src/**/*.{ts,tsx}';
+@source './**/*.{ts,tsx}';
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+}

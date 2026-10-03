@@ -1,0 +1,72 @@
+name: CI
+
+# `validate` is the single required status check. Everything below exists to feed
+# it; nothing is required that `pnpm validate` does not already cover.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # A build that leaks secrets from a fork PR is a disclosure, so the web build
+  # gets obviously-fake values rather than real ones.
+  NEXT_PUBLIC_APP_NAME: Fydio
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  NEXT_PUBLIC_SUPABASE_URL: http://localhost:8000
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key-not-a-real-secret-000000
+  SUPABASE_URL: http://localhost:8000
+  SUPABASE_ANON_KEY: ci-anon-key-not-a-real-secret-000000
+  SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key-not-real-00000000
+  SUPABASE_JWT_SECRET: ci-jwt-secret-not-a-real-secret-000000000000
+  DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
+
+jobs:
+  validate:
+    name: lint · typecheck · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # --frozen-lockfile fails if package.json and pnpm-lock.yaml disagree, which
+      # is what makes the lockfile worth committing.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, typecheck, test, build
+        run: pnpm validate
+
+      - name: Check formatting
+        run: pnpm format:check
+
+  docker:
+    name: compose config is valid
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Parsing the compose files catches a malformed volume mount or a typo'd
+      # service name without paying for a full image pull on every PR.
+      - name: Validate compose files
+        run: |
+          cp docker/.env.example docker/.env
+          docker compose -f docker/docker-compose.yml config --quiet
+          docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml config --quiet

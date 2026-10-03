@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Fydio Library",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist"
+  }
+}

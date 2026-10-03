@@ -1,0 +1,71 @@
+# Supabase CLI project configuration.
+#
+# The local stack is managed by docker/docker-compose.yml, not by `supabase
+# start`, so most of the service ports here are informational. They are set to
+# match the compose stack so `supabase db reset --local` and the CLI's diagnostics
+# resolve the same database the app is talking to.
+#
+# Migrations are applied by scripts/db-migrate.sh, which passes `--db-url`
+# explicitly for exactly this reason.
+
+project_id = "fydio"
+
+[db]
+# Matches docker/.env (POSTGRES_HOST_PORT).
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.seed]
+# Applied by `supabase db reset`. T02 replaces this with real seed data.
+sql_paths = ["seed.sql"]
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db.pooler]
+enabled = true
+port = 6543
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+# Fydio uses Mailpit instead; see docker/docker-compose.dev.yml.
+enabled = false
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**"]
+jwt_expiry = 3600
+enable_signup = true
+# Dev email is captured by Mailpit, so confirmations are auto-accepted to keep
+# the local signup loop short. Production uses a real provider and leaves this on.
+enable_manual_linking = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+
+[realtime]
+enabled = true

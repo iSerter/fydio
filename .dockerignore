@@ -1,0 +1,33 @@
+# Build context trim: keep the Docker daemon from re-sending everything on
+# every rebuild. T10 owns the production Dockerfile; this only has to keep the
+# context small and free of local secrets.
+
+.git/
+.github/
+node_modules/
+**/node_modules/
+.turbo/
+**/.turbo/
+dist/
+**/dist/
+.next/
+**/.next/
+coverage/
+
+# Never bake local secrets into an image layer.
+.env
+.env.local
+.env.*.local
+docker/.env
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Docs and task specs are not needed to build the app.
+tasks/
+*.md
+!README.md
+fydio-product-brief.md
+LICENSE

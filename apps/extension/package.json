@@ -1,0 +1,20 @@
+{
+  "name": "@fydio/extension",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "clean": "rm -rf dist .turbo",
+    "lint": "echo \"no lint target until T10\"",
+    "typecheck": "echo \"no typecheck target until T10\"",
+    "test": "echo \"no test target until T10\""
+  },
+  "dependencies": {
+    "@fydio/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}
