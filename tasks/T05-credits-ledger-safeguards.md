@@ -1,6 +1,6 @@
 # T05 — Fydio Credits: Ledger, Eligibility & Anti-Abuse Safeguards
 
-**Status:** Not started
+**Status:** Done
 **Depends on:** T02
 **Blocks:** T09
 **Brief reference:** §2 Credits and submission access, §9 Credit safeguards, §Include "Separate Fydio Credits for submission access...", "Credit ledger, starter-credit allowance, contribution caps... and basic anti-abuse controls", "Keep Credit balances private in the MVP."

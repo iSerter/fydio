@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import type { HashtagOption } from '@/components/profile/HashtagPicker'
 import { HashtagPicker } from '@/components/profile/HashtagPicker'
+import { canAfford, SubmissionGuard } from '@/components/credits/SubmissionGuard'
 
 /**
  * Submission form (T04): URL with live validation, exactly-3 hashtag picker,
@@ -97,8 +98,14 @@ export function SubmitForm({ creditBalance, creditCost }: { readonly creditBalan
     }
   }
 
+  const affordable = canAfford(creditBalance, creditCost)
   const canSubmit =
-    !busy && !coverBusy && urlState.kind === 'ok' && tags.length === 3 && note.length <= 1000
+    !busy &&
+    !coverBusy &&
+    affordable &&
+    urlState.kind === 'ok' &&
+    tags.length === 3 &&
+    note.length <= 1000
 
   async function onSubmit(event: { preventDefault: () => void }) {
     event.preventDefault()
@@ -232,6 +239,8 @@ export function SubmitForm({ creditBalance, creditCost }: { readonly creditBalan
           ? 'Sign in to see your Credit balance.'
           : `Balance: ${creditBalance} Credit${creditBalance === 1 ? '' : 's'} · this submission costs ${creditCost}.`}
       </p>
+
+      <SubmissionGuard available={creditBalance} cost={creditCost} />
 
       {error ? (
         <p role="alert" className="text-sm text-critical">

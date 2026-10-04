@@ -106,6 +106,11 @@ export const serverEnvSchema = z.object({
   // --- Extension ---
   EXTENSION_ID: z.string().optional(),
   EXTENSION_TOKEN_SECRET: z.string().min(32).optional(),
+
+  // --- Scheduled jobs (T05 cron routes, scheduled in T10) ---
+  // Optional until an operator configures a scheduler: the cron routes refuse
+  // to run without it (503) rather than running unguarded.
+  CRON_SECRET: z.string().min(16).optional(),
 })
 
 /**

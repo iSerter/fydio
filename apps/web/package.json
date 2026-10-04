@@ -14,6 +14,8 @@
     "test": "vitest run",
     "invite:new": "tsx --conditions=react-server --env-file=../../.env scripts/issue-invite.ts",
     "credits:allowance": "tsx --conditions=react-server --env-file=../../.env scripts/grant-allowance.ts",
+    "credits:grant-weekly": "tsx --conditions=react-server --env-file=../../.env scripts/grant-weekly-allowance.ts",
+    "credits:release-held": "tsx --conditions=react-server --env-file=../../.env scripts/release-held-credits.ts",
     "db:migrate": "bash ../../scripts/db-migrate.sh",
     "db:reset": "bash ../../scripts/db-reset.sh",
     "db:seed": "bash ../../scripts/db-seed.sh",
@@ -28,7 +30,8 @@
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sharp": "0.35.5"
+    "sharp": "0.35.5",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@fydio/config-eslint": "workspace:*",
