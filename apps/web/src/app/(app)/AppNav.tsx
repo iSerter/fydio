@@ -18,6 +18,7 @@ export interface AppNavProps {
 export function AppNav({ userId }: AppNavProps) {
   const links = [
     { href: '/feed', label: 'Feed' },
+    { href: '/submit', label: 'Submit' },
     { href: '/settings/profile', label: 'Profile' },
     { href: '/settings/account', label: 'Account' },
   ]

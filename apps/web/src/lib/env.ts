@@ -26,6 +26,21 @@ export function avatarBucket(): string {
   return getServerEnv().STORAGE_BUCKET_AVATARS
 }
 
+/** The covers Storage bucket name. */
+export function coversBucket(): string {
+  return getServerEnv().STORAGE_BUCKET_COVERS
+}
+
+/** Platforms allowed for submission, from PLATFORM_ALLOWLIST. */
+export function platformAllowlist(): readonly string[] {
+  return getServerEnv().PLATFORM_ALLOWLIST
+}
+
+/** Preview fetch timeout in ms. */
+export function previewTimeoutMs(): number {
+  return getServerEnv().URL_PREVIEW_TIMEOUT_MS
+}
+
 /** The display name for the product. */
 export function appName(): string {
   return getServerEnv().APP_NAME

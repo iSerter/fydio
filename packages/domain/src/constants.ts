@@ -70,6 +70,26 @@ export const AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as co
 
 export type AvatarMimeType = (typeof AVATAR_MIME_TYPES)[number]
 
+/* --- Content entry covers (T04) ------------------------------------------------------- */
+
+/** Cover upload limits, enforced before the bytes reach Storage. */
+export const MAX_COVER_UPLOAD_BYTES = 5 * 1024 * 1024
+export const COVER_OUTPUT_WIDTH = 1200
+export const COVER_OUTPUT_HEIGHT = 630
+export const MAX_COVER_OUTPUT_BYTES = 300 * 1024
+
+/** The MIME types the cover route will accept. */
+export const COVER_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+
+export type CoverMimeType = (typeof COVER_MIME_TYPES)[number]
+
+/** Creator note bound for a content entry. */
+export const MAX_CREATOR_NOTE_CHARS = 1000
+
+/** Preview title/caption bounds for a content entry. */
+export const MAX_ENTRY_TITLE_CHARS = 300
+export const MAX_ENTRY_CAPTION_CHARS = 1000
+
 /** Platforms Fydio accepts links for, in the order they appear in the UI. */
 export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'x'] as const
 

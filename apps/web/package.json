@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "invite:new": "tsx --conditions=react-server --env-file=../../.env scripts/issue-invite.ts",
+    "credits:allowance": "tsx --conditions=react-server --env-file=../../.env scripts/grant-allowance.ts",
     "db:migrate": "bash ../../scripts/db-migrate.sh",
     "db:reset": "bash ../../scripts/db-reset.sh",
     "db:seed": "bash ../../scripts/db-seed.sh",

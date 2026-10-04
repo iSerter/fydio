@@ -1,6 +1,6 @@
 # T04 — Content Submission, Platform Parsing & Previews
 
-**Status:** Not started
+**Status:** Completed
 **Depends on:** T02, T03
 **Blocks:** T07, T08, T09
 **Brief reference:** §3 Add content, §Include "Content submission for Instagram, TikTok, YouTube, and X URLs, with exactly three hashtags", §6 (open original), "Content previews: oEmbed or permitted public metadata where supported; graceful fallback to link cards."
