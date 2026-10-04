@@ -324,14 +324,33 @@ select throws_ok(
   'an entry with only one hashtag is refused'
 );
 
+-- Scoped to profiles that have FINISHED onboarding, deliberately.
+--
+-- A member part-way through the wizard is a normal row: they exist the moment their invitation
+-- is redeemed and they choose five tags on step 4, so between those two points they legitimately
+-- have zero. Asserting the invariant across every profile therefore fails the moment anybody
+-- abandons onboarding halfway -- including the integration and E2E suites, which create members
+-- precisely to abandon them at a chosen step.
+--
+-- `onboarding_completed_at` is the marker for "this member committed", and it is set by
+-- `completeOnboarding` alone, so it distinguishes a half-finished member from a finished one
+-- without counting tags as a proxy for the same thing.
+--
+-- The hard cap is still enforced for everyone: `set_profile_hashtags` and the deferred
+-- constraint trigger refuse a sixth tag regardless of onboarding state, and both are asserted
+-- by the tests above.
 select is(
   (select count(*)::integer
      from (select ph.profile_id
              from public.profile_hashtags ph
+             join public.profiles p on p.id = ph.profile_id
+            where p.onboarding_completed_at is not null
             group by ph.profile_id
            having count(*) = 5) ok),
-  (select count(*)::integer from public.profiles),
-  'every profile in the database has exactly five hashtags'
+  (select count(*)::integer
+     from public.profiles
+    where onboarding_completed_at is not null),
+  'every onboarded profile has exactly five hashtags'
 );
 
 select is(

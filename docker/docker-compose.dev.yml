@@ -45,7 +45,25 @@ services:
       GOTRUE_SMTP_ADMIN_EMAIL: auth@localhost
       GOTRUE_SMTP_SENDER_NAME: 'Fydio Dev'
       # Go duration, not a count — Go's time.ParseDuration rejects a bare number.
-      GOTRUE_SMTP_MAX_FREQUENCY: '1000000h'
+      #
+      # This is the per-address cool-down between two emails to the SAME address, enforced in
+      # `validateSentWithinFrequencyLimit` against the row's `*_sent_at` timestamp. The previous
+      # `1000000h` is one million hours -- about 114 years -- which made it impossible to ever
+      # send a second email to an address that had received one.
+      #
+      # That is invisible until the product needs it. Redeeming an invitation spends the address's
+      # one send (GoTrue stamps `sent_at` while generating the invite link), so the very next
+      # magic-link sign-in for that address is refused with a 429 reading "you can only request
+      # this after 3599999999 seconds" -- which is this duration, echoed. Sign-in was therefore
+      # unreachable for every invited member, with an empty Mailpit and no application error.
+      #
+      # Effectively disabled, which is correct here: mail is captured by Mailpit on loopback, so
+      # there is no third party to rate-limit. Production sets this on the hosted project.
+      #
+      # Note the value is `1ms`, NOT `0s`. A zero duration reads as "unset" when GoTrue loads
+      # config, so it silently falls back to the built-in one-minute default -- the guard stays on
+      # and the symptom above returns unchanged. A tiny non-zero value is what actually removes it.
+      GOTRUE_SMTP_MAX_FREQUENCY: '1ms'
     depends_on:
       mailpit:
         condition: service_healthy
@@ -59,6 +77,15 @@ services:
     ports:
       - '${MAILPIT_SMTP_HOST_PORT:-1025}:1025'
       - '${MAILPIT_UI_HOST_PORT:-8025}:8025'
+    networks:
+      # REQUIRED, not decorative. Every other service joins the explicitly-named `fydio`
+      # network (see the top-level `networks:` block in docker-compose.yml). Without this,
+      # Mailpit joins the Compose-generated project default -- `fydio_default` -- and lands on
+      # a different network from `auth`, which makes the name `mailpit` unresolvable from
+      # inside Auth. The symptom is not a DNS error at startup: Auth only looks up the host
+      # when it sends, so every other part of the stack looks healthy while every email
+      # fails with `dial tcp: lookup mailpit on 127.0.0.11:53: no such host`.
+      - fydio
     healthcheck:
       # `mailpit readyz` takes no address flags in v1.28; it probes the SMTP and
       # HTTP listeners it already reports from its own config.

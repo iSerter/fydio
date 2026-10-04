@@ -1,3 +1,15 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# Dependencies allowed to run their install scripts.
+#
+# `esbuild` (via `tsx`, used by the invite-issuing script) downloads and
+# validates its platform binary here; `sharp` resolves its native libvips
+# binding. Both are optional at runtime -- pnpm would otherwise skip both and
+# print an "Ignored build scripts" warning on every install, which trains
+# everyone to ignore warnings that might matter. Listing them here makes the
+# allowlist explicit and keeps the install output clean.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp

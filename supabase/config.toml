@@ -49,13 +49,37 @@ enabled = true
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/**"]
 jwt_expiry = 3600
-enable_signup = true
+# INVITE-ONLY (T03). Must agree with DISABLE_SIGNUP in docker/.env -- this is the
+# CLI's copy of the same GoTrue setting, and the two drifting apart is how a
+# developer ends up debugging "signup works on my machine".
+#
+# With sign-up disabled, `signInWithOtp` only succeeds for an account that
+# already exists. That is the intended shape: invite acceptance creates the
+# account through `auth.admin.createUser`, and the magic link is the sign-in that
+# follows. No client code path calls `signUp`.
+enable_signup = false
 # Dev email is captured by Mailpit, so confirmations are auto-accepted to keep
 # the local signup loop short. Production uses a real provider and leaves this on.
 enable_manual_linking = false
 
+# LOCAL RATE LIMITS (T03). Deliberately permissive, and deliberately here.
+#
+# GoTrue counts `admin.generate_link` against the SAME `email_sent` budget as `signInWithOtp`.
+# Every invite redemption therefore spends a slot from the budget that magic-link sign-in draws
+# from, so the default of 30/hour is exhausted long before a developer -- or the Playwright
+# suite, which issues an invite per test -- can sign in. The symptom is a 429 reading "you can
+# only request this after 3599999999 seconds", with an empty Mailpit inbox and no application
+# error anywhere, which is close to undebuggable if you do not know to look here.
+#
+# This is safe *because* it only ever applies to a local stack: Mailpit captures the mail, there
+# is no reputation to burn, and a production deployment is governed by the hosted project's own
+# limits rather than this file.
+[auth.rate_limit]
+email_sent = 10000
+sms_sent = 10000
+
 [auth.email]
-enable_signup = true
+enable_signup = false
 double_confirm_changes = true
 enable_confirmations = false
 

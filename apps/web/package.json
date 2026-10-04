@@ -12,10 +12,12 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "invite:new": "tsx --conditions=react-server --env-file=../../.env scripts/issue-invite.ts",
     "db:migrate": "bash ../../scripts/db-migrate.sh",
     "db:reset": "bash ../../scripts/db-reset.sh",
     "db:seed": "bash ../../scripts/db-seed.sh",
-    "db:types": "bash ../../scripts/db-types.sh"
+    "db:types": "bash ../../scripts/db-types.sh",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fydio/domain": "workspace:*",
@@ -24,18 +26,23 @@
     "@fydio/ui": "workspace:*",
     "next": "16.3.8",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@fydio/config-eslint": "workspace:*",
     "@fydio/config-tailwind": "workspace:*",
     "@fydio/config-typescript": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.2",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.19.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "eslint": "10.12.0",
     "tailwindcss": "4.3.3",
+    "tsx": "4.20.6",
     "typescript": "5.9.3",
     "vitest": "5.0.3"
   }

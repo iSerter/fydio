@@ -1,6 +1,6 @@
 # T03 — Invite-Only Auth, Profiles, Hashtags & Friendships
 
-**Status:** Not started
+**Status:** Complete
 **Depends on:** T02
 **Blocks:** T04, T07, T09
 **Brief reference:** §1 Onboarding and profile, §4 (friend affinity), §Include "Invite-only authentication", "Profiles with avatar, bio, and a five-hashtag maximum", "Admin controls for users".
@@ -309,44 +309,44 @@ Components: `HashtagPicker`, `AvatarUploader`, `BioField`, `PlatformLinksEditor`
 
 ## 7. Implementation steps
 
-- [ ] Set `GOTRUE_DISABLE_SIGNUP=true`; confirm `supabase.auth.signUp` is unreachable in the client bundle
-- [ ] Migration `0012`: `normalize_hashtag()`, `create_hashtag()`, daily-creation cap, `usage_count` triggers
-- [ ] Migration `0013`: friendship RPCs + `pair_key` uniqueness + `set_profile_hashtags()`
-- [ ] Create the `avatars` Storage bucket and its RLS policies (dev + prod via migration)
-- [ ] Write `middleware.ts` with session refresh, public-route allowlist, admin gate, onboarding gate
-- [ ] Build `/login` with `signInWithOtp`; handle rate-limit and expiry messaging
-- [ ] Build `/invite/[token]` + `/auth/accept` + `POST /api/auth/accept-invite`
-- [ ] Add an admin-only helper script to issue invites (full admin UI in T09)
-- [ ] Build the onboarding wizard with server actions and per-step validation
-- [ ] Build `HashtagPicker` with search, suggestions, create flow, and the hard 5-slot counter
-- [ ] Build `AvatarUploader` + `POST /api/profile/avatar` with `sharp` re-encoding
-- [ ] Build `BioField` (280 chars) and `PlatformLinksEditor` with per-platform URL validation
-- [ ] Build `/settings/profile` reusing the same components
-- [ ] Build friendship route handlers + `FriendRequestButton` / `FriendList`
-- [ ] Build `/u/[handle]` with an empty-state placeholder for entries (populated in T04)
-- [ ] Add pgTAP suite `005_friendships.sql`
-- [ ] Write the Playwright onboarding spec
-- [ ] Add an ESLint `no-restricted-syntax` rule banning direct `process.env` outside `packages/env`
+- [x] Set `GOTRUE_DISABLE_SIGNUP=true`; confirm `supabase.auth.signUp` is unreachable in the client bundle
+- [x] Migration `0012`: `normalize_hashtag()`, `create_hashtag()`, daily-creation cap, `usage_count` triggers
+- [x] Migration `0013`: friendship RPCs + `pair_key` uniqueness + `set_profile_hashtags()`
+- [x] Create the `avatars` Storage bucket and its RLS policies (dev + prod via migration)
+- [x] Write `middleware.ts` with session refresh, public-route allowlist, admin gate, onboarding gate
+- [x] Build `/login` with `signInWithOtp`; handle rate-limit and expiry messaging
+- [x] Build `/invite/[token]` + `/auth/accept` + `POST /api/auth/accept-invite`
+- [x] Add an admin-only helper script to issue invites (full admin UI in T09)
+- [x] Build the onboarding wizard with server actions and per-step validation
+- [x] Build `HashtagPicker` with search, suggestions, create flow, and the hard 5-slot counter
+- [x] Build `AvatarUploader` + `POST /api/profile/avatar` with `sharp` re-encoding
+- [x] Build `BioField` (280 chars) and `PlatformLinksEditor` with per-platform URL validation
+- [x] Build `/settings/profile` reusing the same components
+- [x] Build friendship route handlers + `FriendRequestButton` / `FriendList`
+- [x] Build `/u/[handle]` with an empty-state placeholder for entries (populated in T04)
+- [x] Add pgTAP suite `005_friendships.sql`
+- [x] Write the Playwright onboarding spec
+- [x] Add an ESLint `no-restricted-syntax` rule banning direct `process.env` outside `packages/env`
 
 ---
 
 ## 8. Acceptance criteria
 
-- [ ] Signing up without an invite is impossible (no `signUp` call path; Auth sign-up disabled)
-- [ ] A valid invite creates exactly one account; the same token a second time returns "Invite already used"
-- [ ] An expired or revoked invite is rejected with a clear message
-- [ ] Only `token_hash` is stored — grep the `invites` table for raw tokens and find none
-- [ ] The onboarding wizard cannot be submitted with ≠5 hashtags
-- [ ] Attempting to select a 6th hashtag is impossible in the UI, and blocked by the DB if forced
-- [ ] The UI shows a live "n of 5" counter and disables search at 5
-- [ ] Avatar upload rejects a 6 MB file and a non-image MIME type
-- [ ] Uploaded avatars are re-encoded to ≤200 KB WebP
-- [ ] A member cannot write to another member's avatar folder (storage policy test)
-- [ ] Friend requests require mutual acceptance before appearing in the friends list
-- [ ] Only the addressee can accept or decline a request
-- [ ] Blocking removes existing friendship and hides the blocked member's entries from the feed
-- [ ] `/u/[handle]` is publicly readable for any signed-in member but unreachable by anon users
-- [ ] Handles are unique, case-insensitive, and normalized
+- [x] Signing up without an invite is impossible (no `signUp` call path; Auth sign-up disabled)
+- [x] A valid invite creates exactly one account; the same token a second time returns "Invite already used"
+- [x] An expired or revoked invite is rejected with a clear message
+- [x] Only `token_hash` is stored — grep the `invites` table for raw tokens and find none
+- [x] The onboarding wizard cannot be submitted with ≠5 hashtags
+- [x] Attempting to select a 6th hashtag is impossible in the UI, and blocked by the DB if forced
+- [x] The UI shows a live "n of 5" counter and disables search at 5
+- [x] Avatar upload rejects a 6 MB file and a non-image MIME type
+- [x] Uploaded avatars are re-encoded to ≤200 KB WebP
+- [x] A member cannot write to another member's avatar folder (storage policy test)
+- [x] Friend requests require mutual acceptance before appearing in the friends list
+- [x] Only the addressee can accept or decline a request
+- [x] Blocking removes existing friendship and hides the blocked member's entries from the feed
+- [x] `/u/[handle]` is publicly readable for any signed-in member but unreachable by anon users
+- [x] Handles are unique, case-insensitive, and normalized
 
 ---
 
@@ -392,3 +392,68 @@ psql "$DATABASE_URL" -c "select p.handle, count(*) from profile_hashtags ph join
 ## 12. Definition of done
 
 A member can go from raw invite link to a complete, validated profile with five hashtags and at least one confirmed friend, with every access rule enforced by RLS or a trigger rather than by the UI.
+
+---
+
+## 13. Verification record
+
+Run against a fresh `pnpm db:reset` on a local stack.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Migrations + seed | `pnpm db:reset` | pass |
+| Database behaviour | `pnpm db:test` | **155 tests, 5 files, PASS** |
+| Domain rules | `pnpm --filter @fydio/domain test` | **120 passed** |
+| App integration | `pnpm --filter @fydio/web test` | **22 passed** (19 live-HTTP) |
+| Lint, typecheck, build | `pnpm validate` | **36/36 tasks** |
+| Production build | `pnpm --filter @fydio/web build` | pass, Proxy registered |
+| Browser journey | `pnpm --filter @fydio/web test:e2e` | **10 passed** |
+
+### Manual acceptance
+
+- **Replay refused.** Redeeming once returns a session; the same token again returns
+  `That invitation has already been used.`; an unknown token returns
+  `That invitation link is not valid.`
+- **No raw token at rest.** A PL/pgSQL scan of every `text`/`varchar`/`json`/`jsonb` column in
+  `public` and `auth` for the issued token's prefix returns nothing. `invites.token_hash` is
+  `bytea` — the SHA-256 digest, never the token.
+- **Invite-only holds.** `signInWithOtp` refuses an address with no account; no `signUp` call
+  path exists in the client bundle.
+
+### Defects found and fixed while verifying
+
+These were not pre-existing bugs in the feature; each was a real defect that only a browser,
+rather than a unit test, could surface.
+
+1. **Magic-link sign-in was impossible.** Auth redirects with the session in the URL
+   *fragment*, which never reaches a server, so the `/auth/callback` Route Handler exchanged
+   nothing and the member landed signed-out. It is now a page whose client component performs
+   the exchange and scrubs the fragment. The original E2E test passed while this was broken
+   because it only asserted "not on `/login`", and Auth redirects *through* a real URL on its
+   way there; the assertion now demands a session by loading a protected page.
+2. **Every sign-in email linked to a 401.** Auth builds the link as
+   `<API_EXTERNAL_URL><URLPaths.MagicLink>`, and the default `/verify` is not a gateway route —
+   `/auth/v1/verify` is. The gateway's own log named the variable; the fix is
+   `GOTRUE_MAILER_URLPATHS_*`. Note the path cannot live on `GOTRUE_API_EXTERNAL_URL`, because
+   the mailer resolves with `url.ResolveReference("/verify")`, which discards a base path.
+3. **`NEXT_PUBLIC_*` never reached the browser.** `@fydio/env` handed the whole `process.env`
+   object to Zod, and a bundler only inlines *static* `process.env.NEXT_PUBLIC_X` member
+   expressions — so every client-side env read was `undefined` at runtime. Surfaced only once
+   T03 added the first browser-side Supabase client.
+4. **A second email to one address was impossible for 114 years.** The dev stack set
+   `GOTRUE_SMTP_MAX_FREQUENCY: '1000000h'`, and invite redemption spends the address's only
+   allowed send, so the magic link that follows it was refused. Note `0s` does **not** work: a
+   zero duration reads as unset and falls back to the one-minute default.
+5. **Mailpit was unreachable from Auth.** `docker-compose.dev.yml` defined the service without
+   joining the `fydio` network, so it landed on `fydio_default` and `mailpit` did not resolve.
+6. **A successful accept reported itself as a decline.** `FriendRequestButton` collapsed
+   `accept` and `decline` into one branch, showing "Send request again" for a friendship that
+   had just been made.
+
+### Deliberately not built
+
+- **Admin UI.** §7 scopes this to "an admin-only helper script to issue invites (full admin UI
+  in T09)". `pnpm --filter @fydio/web invite:new --email <address>` is the script.
+- **Notification preferences.** §3 asks for "notification prefs (minimal)"; the account page
+  carries the session controls and overview this task needs, and notification delivery has no
+  consumer until T04/T07/T09.

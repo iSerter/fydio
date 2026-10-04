@@ -8,6 +8,15 @@ import { getServerEnv } from '@fydio/env/server'
 import type { FydioClient } from './types.js'
 
 /**
+ * Re-exported so callers do not have to depend on `@supabase/ssr` directly.
+ *
+ * `CookieStore.set` takes this type, so every call site that implements a `CookieStore`
+ * needs it -- and making `@supabase/ssr` a direct dependency of the web app just to name one
+ * type would duplicate the version pin that this package already owns.
+ */
+export type { CookieOptions }
+
+/**
  * The subset of Next.js cookie handling this package needs.
  *
  * Declared structurally rather than importing `next/headers` so the package

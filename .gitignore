@@ -53,3 +53,11 @@ pnpm-debug.log*
 # Next.js only reads .env from the app directory; this symlink points it at the
 # single root env so there is still exactly one source of truth.
 apps/*/.env
+
+# Playwright output. Per-test directories on failure contain a screenshot, a trace archive and
+# a rendered page snapshot -- useful while debugging, noise in a diff. `trace: 'retain-on-failure'`
+# in the config means a green run writes nothing here at all.
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+apps/web/.playwright/

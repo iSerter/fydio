@@ -191,6 +191,19 @@ update public.profiles p
   from auth.users u
  where u.id = p.id and u.email = 'admin@demo.test';
 
+-- Every seeded member is stamped as onboarded (T03).
+--
+-- `handle_new_user` provisions each profile through the auth.users trigger and gives it a
+-- placeholder display name. Without this stamp all 30 demo members would have
+-- `onboarding_completed_at IS NULL` and the proxy would bounce every one of them into the
+-- five-step wizard on first load -- which would make the seeded feed, inbox and moderation
+-- screens unreachable for local development.
+--
+-- This is also what the column means: NULL is reserved for accounts that genuinely have
+-- not finished onboarding, a population only a real invite redemption can produce.
+update public.profiles
+   set onboarding_completed_at = now();
+
 -- -----------------------------------------------------------------------------
 -- Hashtags — 40 tags across the interest areas the brief names
 -- -----------------------------------------------------------------------------

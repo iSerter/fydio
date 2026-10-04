@@ -12,5 +12,44 @@
  *
  * Types are safe to import from anywhere.
  */
-export type { CookieStore } from './server.js'
+export type { CookieStore, CookieOptions } from './server.js'
 export type { Database, FydioClient } from './types.js'
+export type {
+  ContentEntry,
+  ContentHashtag,
+  CreditBalance,
+  CreditKind,
+  CreditLedgerEntry,
+  DurationBand,
+  DurationEvent,
+  EligibilityState,
+  EntryState,
+  Feedback,
+  FeedbackRating,
+  FeedImpression,
+  FeedSignal,
+  FeedSignalKind,
+  Friendship,
+  FriendshipState,
+  Hashtag,
+  Invite,
+  LedgerStatus,
+  ModerationAction,
+  ModerationReport,
+  Mute,
+  OutboundClick,
+  PlatformKind,
+  PreviewState,
+  Profile,
+  ProfileHashtag,
+  ProfileLink,
+  ProfileReputationView,
+  ProfileRole,
+  RankedEntry,
+  ReputationKind,
+  ReputationLedgerEntry,
+  ReputationSummary,
+  ReportState,
+  ReportTarget,
+  WeeklyAllowanceRun,
+} from './db-types.js'

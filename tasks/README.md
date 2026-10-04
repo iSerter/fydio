@@ -20,6 +20,7 @@ Technical plan for building **Fydio | Curated Feeds** from `fydio-product-brief.
 | **T08** | [Outbound Clicks, Opened State & Duration Telemetry](./T08-outbound-clicks-duration-telemetry.md) | T02, T04, T07      | Click tracking, return tokens, consented coarse bands  |
 | **T09** | [Feedback Surfaces, Moderation Console & Metrics](./T09-feedback-moderation-metrics.md)           | T05, T06, T07, T08 | Composer, inbox, ratings, admin, success metrics       |
 | **T10** | [Chrome Extension, Docker Prod Build & Coolify Deploy](./T10-extension-coolify-deployment.md)     | T08, T09           | MV3 companion, standalone image, Coolify resources     |
+| **T11** | [Limited-Use Invite Links (`/join/{code}`)](./T11-limited-invite-links.md)                       | T03                | Capped shareable codes, atomic use limit, admin minting |
 
 ---
 
@@ -33,6 +34,8 @@ T01 ──► T02 ──┬──► T03 ──┬──► T04 ──┐
               ├──────► T05 ─────────┤          ├──► T09 ──► T10
               │                     │          │
               └──────► T06 ─────────┴──────────┘
+                         │
+                         └──► T11   (optional; nothing waits on it)
 ```
 
 ## Document structure
@@ -64,4 +67,4 @@ These are enforced structurally (database constraints, RPCs, RLS, types) rather 
 
 ## Suggested build order
 
-T01 → T02 unlock everything. T03 and T04 are the fastest path to a demoable loop. T05 and T06 are independent of each other. T07 and T08 build the feed experience. T09 closes the loop with feedback and admin. T10 ships it.
+T01 → T02 unlock everything. T03 and T04 are the fastest path to a demoable loop. T05 and T06 are independent of each other. T07 and T08 build the feed experience. T09 closes the loop with feedback and admin. T10 ships it. T11 is optional and blocks nothing — add it when you want to grow the community in batches rather than one invitation at a time.

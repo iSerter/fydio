@@ -105,3 +105,36 @@ describe('parseClientEnv', () => {
     }
   })
 })
+
+describe('client env inlining', () => {
+  /**
+   * A regression guard for a bug that nothing else in this file can catch.
+   *
+   * `readClientEnv()` builds its object from literal `process.env.NEXT_PUBLIC_*` reads because the
+   * bundler replaces exactly those expressions with string literals. Any other shape -- spreading
+   * `process.env`, destructuring it, reading it dynamically -- compiles cleanly, passes every test
+   * above, and then fails at runtime in the browser with "Client environment failed validation",
+   * because the bundle was emitted with no values to substitute in.
+   *
+   * No unit test can observe the substitution itself, so this asserts the *source* property that
+   * makes it possible: every schema key is named through a static member access, and the bare
+   * `process.env` form is absent.
+   */
+  it('reads every schema key through a static process.env.NEXT_PUBLIC_* expression', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const { fileURLToPath } = await import('node:url')
+
+    const source = await readFile(fileURLToPath(new URL('./client.ts', import.meta.url)), 'utf8')
+
+    for (const key of Object.keys(clientEnvSchema.shape)) {
+      expect(source, `${key} must be read as \`process.env.${key}\``).toContain(
+        `process.env.${key}`,
+      )
+    }
+
+    // The exact failure mode: handing the whole object to the schema produced an un-inlinable
+    // bundle. Asserting both shapes are gone keeps that from being reintroduced.
+    expect(source).not.toMatch(/safeParse\(process\.env\)/)
+    expect(source).not.toMatch(/source:\s*Record<[^>]+>\s*=\s*process\.env\b/)
+  })
+})

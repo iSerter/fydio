@@ -135,6 +135,31 @@ services:
       GOTRUE_API_PORT: 9999
       API_EXTERNAL_URL: ${API_EXTERNAL_URL}
 
+      # Read by GoTrue; the bare `API_EXTERNAL_URL` above is not read at all. This is only the
+      # ORIGIN -- the path cannot be used, because the mailer resolves the link with
+      # `url.ResolveReference("/verify")`, and a reference with an absolute path REPLACES the
+      # base's path entirely. Putting `/auth/v1` here would therefore be silently discarded.
+      GOTRUE_API_EXTERNAL_URL: ${GOTRUE_API_EXTERNAL_URL:-${API_EXTERNAL_URL}}
+
+      # REQUIRED FOR MAGIC-LINK SIGN-IN TO WORK AT ALL, and invisible until a member clicks
+      # their own email.
+      #
+      # The link in every sign-in email is built as `<API_EXTERNAL_URL> <URLPaths.MagicLink>`,
+      # and `URLPaths.MagicLink` defaults to `/verify`. The gateway's route, however, is
+      # `/auth/v1/verify` -- it rewrites to `/verify` on the auth cluster -- so the default
+      # produces `http://localhost:8000/verify`, which the gateway answers with 401.
+      #
+      # The 401 is the whole symptom. Nothing else reports a problem: mail is delivered, the
+      # inbox fills up, every programmatic `signInWithOtp` call returns 200, and the member who
+      # follows the link in it gets an authentication challenge they cannot satisfy, because a
+      # browser navigation cannot attach the `apikey` header that `/auth/v1/*` requires. Sign-in
+      # by emailed link was therefore impossible, with no error anywhere in the app.
+      GOTRUE_MAILER_URLPATHS_MAGICLINK: ${GOTRUE_MAILER_URLPATHS_MAGICLINK:-/auth/v1/verify}
+      GOTRUE_MAILER_URLPATHS_INVITE: ${GOTRUE_MAILER_URLPATHS_INVITE:-/auth/v1/verify}
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${GOTRUE_MAILER_URLPATHS_CONFIRMATION:-/auth/v1/verify}
+      GOTRUE_MAILER_URLPATHS_RECOVERY: ${GOTRUE_MAILER_URLPATHS_RECOVERY:-/auth/v1/verify}
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE:-/auth/v1/verify}
+
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
 
@@ -163,9 +188,13 @@ services:
       GOTRUE_EXTERNAL_PHONE_ENABLED: 'false'
       GOTRUE_SMS_AUTOCONFIRM: 'true'
 
-      GOTRUE_RATE_LIMIT_EMAIL_VERIFICATION: ${GOTRUE_RATE_LIMIT_EMAIL_VERIFICATION:-3}
-      GOTRUE_RATE_LIMIT_EMAIL_SEND: ${GOTRUE_RATE_LIMIT_EMAIL_SEND:-30}
-      GOTRUE_RATE_LIMIT_SMS_SENT: ${GOTRUE_RATE_LIMIT_SMS_SENT:-30}
+      GOTRUE_RATE_LIMIT_EMAIL_VERIFICATION: ${GOTRUE_RATE_LIMIT_EMAIL_VERIFICATION:-10000}
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${GOTRUE_RATE_LIMIT_EMAIL_SENT:-10000}
+      GOTRUE_RATE_LIMIT_EMAIL_SEND: ${GOTRUE_RATE_LIMIT_EMAIL_SEND:-10000}
+      GOTRUE_RATE_LIMIT_SMS_SENT: ${GOTRUE_RATE_LIMIT_SMS_SENT:-10000}
+      GOTRUE_RATE_LIMIT_OTP: ${GOTRUE_RATE_LIMIT_OTP:-10000}
+      GOTRUE_RATE_LIMIT_VERIFY: ${GOTRUE_RATE_LIMIT_VERIFY:-10000}
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: ${GOTRUE_RATE_LIMIT_TOKEN_REFRESH:-10000}
 
       GOTRUE_LOG_LEVEL: info
     networks:

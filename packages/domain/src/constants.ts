@@ -23,6 +23,53 @@ export const MIN_FEEDBACK_CHARS = 40
 export const MIN_RATING = 1
 export const MAX_RATING = 10
 
+/* --- Profile (T03) ---------------------------------------------------------------- */
+
+/**
+ * Display-name bounds.
+ *
+ * The database CHECK allows 1-80, but the product asks for 2-60. The narrower rule lives
+ * here rather than in the schema because it is a product decision about how a name reads
+ * in a profile card, not a storage concern -- and because the wizard needs to reject a
+ * one-character name before the member reaches the confirmation step.
+ */
+export const MIN_DISPLAY_NAME_CHARS = 2
+export const MAX_DISPLAY_NAME_CHARS = 60
+
+/** A short self-description. Optional, but bounded when present. */
+export const MAX_BIO_CHARS = 280
+
+/**
+ * Hashtag slug bounds.
+ *
+ * The canonical separator is `-`, matching the seeded vocabulary (`hook-analysis`,
+ * `color-grading`). Both `-` and `_` are accepted on input and collapsed to `-`, so
+ * `snake_case` and `snake-case` are one tag rather than two half-used ones.
+ *
+ * These MUST stay equal to `hashtag_slug_format` in supabase/migrations/0002 and to
+ * `normalize_hashtag` in 0012. The pgTAP suite asserts every seeded slug round-trips, so
+ * a divergence here fails the database tests rather than silently producing tags the
+ * picker cannot find.
+ */
+export const MIN_HASHTAG_CHARS = 2
+export const MAX_HASHTAG_CHARS = 40
+
+/** New hashtags one member may create per day. Vocabulary-spam guard. */
+export const HASHTAG_DAILY_CREATION_CAP = 5
+
+/** Friend requests one member may send per hour. */
+export const FRIEND_REQUEST_HOURLY_CAP = 10
+
+/** Avatar upload limits, enforced before the bytes reach Storage. */
+export const MAX_AVATAR_UPLOAD_BYTES = 5 * 1024 * 1024
+export const AVATAR_OUTPUT_SIZE = 512
+export const MAX_AVATAR_OUTPUT_BYTES = 200 * 1024
+
+/** The MIME types the avatar route will accept. */
+export const AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+
+export type AvatarMimeType = (typeof AVATAR_MIME_TYPES)[number]
+
 /** Platforms Fydio accepts links for, in the order they appear in the UI. */
 export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'x'] as const
 
