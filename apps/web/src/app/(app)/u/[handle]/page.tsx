@@ -3,6 +3,9 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 
 import { Badge, Card, Stack } from '@fydio/ui'
+import { badgeForReputation, type ReputationSummary } from '@fydio/domain'
+
+import { ReputationCard } from '@/components/reputation/ReputationCard'
 
 import { FriendList, type FriendListEntry } from '@/components/social/FriendList'
 import { ConnectionCard } from '@/components/social/ConnectionCard'
@@ -47,13 +50,24 @@ export default async function PublicProfilePage({
   const { data: profile } = await supabase
     .from('profiles')
     .select(
-      'id, handle, display_name, bio, avatar_path, role, reputation_total, rated_feedback_count',
+      'id, handle, display_name, bio, avatar_path, role, reputation_total, rated_feedback_count, reputation_avg',
     )
     .eq('handle', handle)
     .maybeSingle()
 
   if (profile === null) {
     notFound()
+  }
+
+  const reputation: ReputationSummary = {
+    kind: 'reputation',
+    total: profile.reputation_total,
+    ratedCount: profile.rated_feedback_count,
+    average:
+      typeof profile.reputation_avg === 'string'
+        ? Number(profile.reputation_avg)
+        : profile.reputation_avg,
+    badge: badgeForReputation(profile.reputation_total),
   }
 
   const { data: tags } = await supabase
@@ -163,11 +177,7 @@ export default async function PublicProfilePage({
             ))}
           </div>
 
-          <p className="text-xs text-ink-subtle">
-            {profile.rated_feedback_count === 0
-              ? 'No ratings yet'
-              : `${profile.reputation_total} reputation from ${profile.rated_feedback_count} ratings`}
-          </p>
+          <ReputationCard reputation={reputation} />
         </Stack>
       </Card>
 

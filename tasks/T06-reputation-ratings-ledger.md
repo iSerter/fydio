@@ -1,6 +1,6 @@
 # T06 — Feedback Reputation: Ratings & Reputation Ledger
 
-**Status:** Not started
+**Status:** Done
 **Depends on:** T02
 **Blocks:** T09
 **Brief reference:** §8 Reputation, §7 Feedback, §Include "Creator feedback inbox and 1–10 feedback ratings", "Reputation totals", §principle 2 "Useful feedback over vanity metrics."
@@ -286,37 +286,37 @@ Never: leaderboards, "top feedback givers," or comparisons across members.
 
 ## 7. Implementation steps
 
-- [ ] Migration `0017`: `refresh_profile_reputation`, `get_reputation`, badge threshold setting
-- [ ] Migration `0018`: `reverse_reputation_for_feedback` (admin-only, audited)
-- [ ] Migration `0019`: `revise_rating` with reversing pairs and window enforcement
-- [ ] Write `packages/domain/src/reputation.ts` (badge tiers, formatting, copy constants)
-- [ ] Write `packages/domain/src/types-separation.ts` proving the two systems cannot cross
-- [ ] Build `ReputationCard`, `ReputationExplainer`, `RatingStars` (read-only)
-- [ ] Surface reputation on `/u/[handle]` (T03 scaffold) — public read
-- [ ] Ensure `rate_feedback` (T02) is wired to recompute aggregates (already calls `refresh_profile_reputation`)
-- [ ] Wire moderation removal to `reverse_reputation_for_feedback` (called by T09's admin action)
-- [ ] Write pgTAP suite `008_reputation.sql`
-- [ ] Write the Playwright reputation spec
-- [ ] Verify the non-spendability test passes (500 reputation, 0 credits → still blocked)
-- [ ] Confirm no leaderboard/ordering view exists anywhere in schema or UI
+- [x] Migration `0017`: `refresh_profile_reputation`, `get_reputation`, badge threshold setting
+- [x] Migration `0018`: `reverse_reputation_for_feedback` (admin-only, audited)
+- [x] Migration `0019`: `revise_rating` with reversing pairs and window enforcement
+- [x] Write `packages/domain/src/reputation.ts` (badge tiers, formatting, copy constants)
+- [x] Write `packages/domain/src/types-separation.ts` proving the two systems cannot cross
+- [x] Build `ReputationCard`, `ReputationExplainer`, `RatingStars` (read-only)
+- [x] Surface reputation on `/u/[handle]` (T03 scaffold) — public read
+- [x] Ensure `rate_feedback` (T02) is wired to recompute aggregates (already calls `refresh_profile_reputation`)
+- [x] Wire moderation removal to `reverse_reputation_for_feedback` (called by T09's admin action)
+- [x] Write pgTAP suite `008_reputation.sql`
+- [x] Write the Playwright reputation spec (written; executes in CI with `pnpm dev` + browsers — not run locally)
+- [x] Verify the non-spendability test passes (500 reputation, 0 credits → still blocked)
+- [x] Confirm no leaderboard/ordering view exists anywhere in schema or UI
 
 ---
 
 ## 8. Acceptance criteria
 
-- [ ] Only the entry owner can rate; a third party attempting to rate raises an error
-- [ ] A second rating on the same feedback raises `unique_violation`
-- [ ] Self-rating is rejected
-- [ ] Ratings outside 1–10 are rejected by validation and by the DB check
-- [ ] Revising within the window adjusts the ledger with a −old/+new pair; `sum(delta)` stays correct
-- [ ] Revising after the window is rejected
-- [ ] Moderation reversal removes the score from the total and is audited in `moderation_actions`
-- [ ] `get_reputation` returns total, ratedCount, average, and a badge for any profile
-- [ ] Reputation is publicly readable by any member; the _same_ numbers are shown to the owner
-- [ ] **A member with 500 reputation and 0 Credits still cannot submit** (non-spendability)
-- [ ] No `feedback_earned` or `credit_ledger` write occurs as a side effect of rating
-- [ ] No leaderboard/ranking query or view exists
-- [ ] `ReputationSummary` is not assignable to `CreditBalance` and vice versa (type test)
+- [x] Only the entry owner can rate; a third party attempting to rate raises an error
+- [x] A second rating on the same feedback raises `unique_violation`
+- [x] Self-rating is rejected
+- [x] Ratings outside 1–10 are rejected by validation and by the DB check
+- [x] Revising within the window adjusts the ledger with a −old/+new pair; `sum(delta)` stays correct
+- [x] Revising after the window is rejected
+- [x] Moderation reversal removes the score from the total and is audited in `moderation_actions`
+- [x] `get_reputation` returns total, ratedCount, average, and a badge for any profile
+- [x] Reputation is publicly readable by any member; the _same_ numbers are shown to the owner
+- [x] **A member with 500 reputation and 0 Credits still cannot submit** (non-spendability)
+- [x] No `feedback_earned` or `credit_ledger` write occurs as a side effect of rating
+- [x] No leaderboard/ranking query or view exists
+- [x] `ReputationSummary` is not assignable to `CreditBalance` and vice versa (type test)
 
 ---
 

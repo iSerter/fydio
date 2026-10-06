@@ -2,18 +2,18 @@ import Image from 'next/image'
 
 import { Badge, Card, Stack } from '@fydio/ui'
 
-import { REPUTATION_LABEL } from '@fydio/domain'
+import { badgeForReputation, formatReputationAverage, formatReputationTotal } from '@fydio/domain'
 
 /**
- * A member summary (T03).
+ * A member summary (T03) with public reputation (T06).
  *
  * A Server Component: a profile card appears many times per feed page and needs no state, so
  * making it a Client Component would ship its props and hydration cost to every reader for no
  * benefit.
  *
- * REPUTATION IS A PLACEHOLDER HERE ON PURPOSE. T06 owns the reputation ledger and T09 builds the
- * real display. Showing the number now would imply a scoring system that does not exist yet, so
- * the card carries the member's identity and hashtags only.
+ * Reputation is public by product decision — total, count, average and badge come from the
+ * `get_reputation` shape via `profiles` aggregates. Credits never appear here; they are private
+ * and spendable, and this card answers "how useful", not "what can I spend".
  */
 export interface ProfileCardData {
   readonly handle: string
@@ -21,6 +21,9 @@ export interface ProfileCardData {
   readonly bio: string | null
   readonly avatar_path: string | null
   readonly hashtags: readonly { slug: string; label: string }[]
+  readonly reputation_total?: number
+  readonly rated_feedback_count?: number
+  readonly reputation_avg?: number | string | null
 }
 
 export interface ProfileCardProps {
@@ -58,9 +61,7 @@ export function ProfileCard({ profile, avatarBaseUrl }: ProfileCardProps) {
           </div>
         </div>
 
-        {profile.bio === null ? null : (
-          <p className="text-sm text-ink-muted">{profile.bio}</p>
-        )}
+        {profile.bio === null ? null : <p className="text-sm text-ink-muted">{profile.bio}</p>}
 
         <div className="flex flex-wrap gap-1.5">
           {profile.hashtags.map((tag) => (
@@ -70,9 +71,19 @@ export function ProfileCard({ profile, avatarBaseUrl }: ProfileCardProps) {
           ))}
         </div>
 
-        {/* Reputation lands in T06. Kept as a commented-out slot rather than a fake number so
-            the card does not imply a scoring system that does not exist yet. */}
-        <p className="text-xs text-ink-subtle">{REPUTATION_LABEL} arrives in a later release</p>
+        {/* Reputation (T06): public helpfulness signal, same numbers as the profile page. */}
+        <p className="text-xs text-ink-subtle">
+          {formatReputationTotal(profile.reputation_total ?? 0)}
+          {' · '}
+          {formatReputationAverage(
+            typeof profile.reputation_avg === 'string'
+              ? Number(profile.reputation_avg)
+              : (profile.reputation_avg ?? null),
+            profile.rated_feedback_count ?? 0,
+          )}
+          {' · '}
+          {badgeForReputation(profile.reputation_total ?? 0)}
+        </p>
       </Stack>
     </Card>
   )
