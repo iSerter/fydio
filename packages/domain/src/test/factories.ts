@@ -40,9 +40,14 @@ export function viewer(overrides: Partial<ViewerContext> = {}): ViewerContext {
   return {
     viewerId: 'viewer-1',
     profileHashtags: ['design', 'motion', 'typography'],
+    // Empty by default so the T07 parity tests opt into the affinity signal
+    // explicitly rather than every existing fixture silently scoring against it.
+    likedHashtags: [],
     seenEntryIds: [],
-    seenAuthors: new Set(),
-    seenPlatforms: new Set(),
+    // Counts, not sets: a creator already shown twice has to be distinguishable
+    // from one shown once, or the per-creator cap can never trip across pages.
+    seenAuthors: new Map(),
+    seenPlatforms: new Map(),
     ...overrides,
   }
 }

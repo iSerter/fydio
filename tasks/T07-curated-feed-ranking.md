@@ -1,6 +1,6 @@
 # T07 — Curated Home Feed: Deterministic Ranking & Tuning Signals
 
-**Status:** Not started
+**Status:** Complete
 **Depends on:** T02, T03
 **Blocks:** T08, T09, T10
 **Brief reference:** §4 Curated home feed, §principle 4 "Transparent ranking", §Include "Feed ranking by tag overlap, friends, freshness, and diversity", "Use deterministic ranking first."

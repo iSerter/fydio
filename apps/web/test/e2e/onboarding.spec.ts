@@ -212,7 +212,11 @@ test.describe('invite → onboarding → profile', () => {
 
     // --- Out of onboarding --------------------------------------------------
     await page.waitForURL(/\/feed/, { timeout: 30_000 })
-    await expect(page.getByRole('heading', { name: /welcome, ada lovelace/i })).toBeVisible()
+
+    // The feed greets the member by the display name they just chose. This is T07's
+    // feed page, not the T03 placeholder that used to say "Welcome, ..." — asserting
+    // the greeting proves onboarding landed somewhere real rather than on a stub.
+    await expect(page.getByRole('heading', { name: /hi, ada lovelace/i })).toBeVisible()
   })
 
   test('the same invitation cannot be redeemed twice', async ({ page }) => {

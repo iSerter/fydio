@@ -42,7 +42,8 @@
     "@fydio/env": "workspace:*",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@fydio/config-eslint": "workspace:*",

@@ -28,9 +28,10 @@ describe('web app foundation', () => {
     const result = rankFeed([], {
       viewerId: 'viewer-1',
       profileHashtags: ['design'],
+      likedHashtags: [],
       seenEntryIds: [],
-      seenAuthors: new Set(),
-      seenPlatforms: new Set(),
+      seenAuthors: new Map(),
+      seenPlatforms: new Map(),
     })
 
     expect(result).toEqual([])

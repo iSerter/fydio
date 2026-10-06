@@ -28,15 +28,52 @@ export function isReputationSummary(
   return value.kind === 'reputation'
 }
 
-declare const _credit: CreditBalance
-declare const _reputation: ReputationSummary
-declare const _summary: CreditSummary
+/**
+ * Compile-time assertion that `A` is NOT assignable to `B`.
+ *
+ * `NotAssignable` resolves to `true` when the types are correctly separated and
+ * `false` when they have been conflated. `AssertTrue` then accepts only `true`, so
+ * `AssertTrue<NotAssignable<A, B>>` fails to compile the moment `A` becomes
+ * assignable to `B`.
+ *
+ * The two-step matters. A bare `never`-returning helper would type-check fine as an
+ * UNUSED exported alias whether or not the property held — an exported type that
+ * resolves to `never` raises no error, so the check would silently pass forever. The
+ * constraint is what turns the result into a build break.
+ *
+ * THE PREVIOUS FORM WAS BROKEN TWICE. It used `declare const _credit` plus
+ * `const _creditIsNotReputation: ReputationSummary = _credit`:
+ *
+ *   1. RUNTIME. `declare const` is type-only and emits nothing, but the `const` on
+ *      the next line is a real statement reading a variable that does not exist, so
+ *      importing anything from the `@fydio/domain` barrel threw
+ *      `ReferenceError: _credit is not defined`. A compile-time check had been given
+ *      a runtime cost that every consumer paid.
+ *   2. `@ts-expect-error` on an unused local also suppresses the "declared but never
+ *      used" diagnostic, so a future edit that removed the intended error would not
+ *      have been caught by it either.
+ *
+ * The `[A] extends [B]` tuple wrapping is deliberate: bare `A extends B` distributes
+ * over unions, so `never extends X` would silently pass for a union member.
+ */
+type NotAssignable<A, B> = [A] extends [B] ? false : true
+type AssertTrue<T extends true> = T
 
-// @ts-expect-error — a credit balance is not a reputation summary
-const _creditIsNotReputation: ReputationSummary = _credit
+/** A credit balance is not a reputation summary. */
+export type CreditIsNotReputation = AssertTrue<
+  NotAssignable<CreditBalance, ReputationSummary>
+>
 
-// @ts-expect-error — a reputation summary is not a credit balance
-const _reputationIsNotCredit: CreditBalance = _reputation
+/** A reputation summary is not a credit balance. */
+export type ReputationIsNotCredit = AssertTrue<
+  NotAssignable<ReputationSummary, CreditBalance>
+>
 
-// @ts-expect-error — a credit summary (no `kind`) is neither
-const _summaryIsNotReputation: ReputationSummary = _summary
+/**
+ * A credit summary carries no `kind` discriminant, so it is neither signal — which is
+ * what makes it safe to pass where a discriminated union is expected.
+ */
+export type CreditSummaryIsNotReputation = AssertTrue<
+  NotAssignable<CreditSummary, ReputationSummary>
+>
+

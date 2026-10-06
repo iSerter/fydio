@@ -1,7 +1,13 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 
-import { Badge, Card, Stack } from '@fydio/ui'
+import { PLATFORMS, type FeedReason, type Platform } from '@fydio/domain'
+import { parseRankedRows, type RankedEntry } from '@fydio/supabase'
 
+import { FeedClient } from '@/components/feed/FeedClient'
+import { toCardEntry, type FeedCardEntry, type FeedCardCursor } from '@/components/feed/feed-entry'
+import { FeedFilters } from '@/components/feed/FeedFilters'
+import { avatarBucket, coversBucket, publicStorageUrl } from '@/lib/env'
 import { memberClient, requireUserId } from '@/lib/server'
 
 export const metadata: Metadata = {
@@ -11,25 +17,105 @@ export const metadata: Metadata = {
 /**
  * Dynamic: per-member.
  *
- * It reads the member's profile so the redirect target exists and can show something useful
- * even before T07 replaces it. Making this page exist is not scope creep -- the proxy already
- * redirects here after sign-in and after onboarding, so without it both paths would 404 and
- * the whole invite-to-profile journey would end in an error.
+ * The feed IS the member's five hashtags, their friendships and their muted
+ * creators. There is no shared version of this page to cache, and the proxy has
+ * already established a session by the time it renders.
  */
 export const dynamic = 'force-dynamic'
 
 /**
- * The feed placeholder (T07 owns the real one).
+ * The curated home feed (T07).
  *
- * Deliberately empty of content, with an honest explanation. A page that says "nothing here
- * yet" when the feed already exists would be worse than one that says the feed is not built.
+ * The whole page is a Server Component. The ranking happens in the database
+ * (`rank_feed`), the first page is rendered here, and JavaScript is only needed for
+ * "load more" and the impression observer — so a member sees content immediately
+ * and the page works without it.
  *
- * It DOES render the member's hashtags, because those are the ranking signal T07 will consume,
- * and seeing them here makes the connection between onboarding and the feed legible.
+ * WHY FILTERS ARE READ FROM THE URL HERE AND NOT IN `FeedClient`. A filter narrows
+ * the ORDERING, and the ordering is what the cursor is a position in. If the client
+ * filtered after fetching, "load more" would continue from a cursor computed against
+ * a different total order and silently skip entries. Reading the filter server-side
+ * and starting the cursor fresh is the only version that cannot skip.
  */
-export default async function FeedPage() {
+export default async function FeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ platform?: string | string[]; tag?: string | string[] }>
+}) {
   const userId = await requireUserId()
   const supabase = await memberClient()
+  const query = await searchParams
+
+  // `getAll` rather than a bare read: two `?platform=` parameters is a legitimate
+  // way to ask for two platforms, and taking only the last one would make the filter
+  // behave differently depending on parameter order.
+  const platforms = asList(query.platform).filter(isPlatform)
+  const tagSlugs = asList(query.tag)
+
+  // Slugs -> ids, in one query, before the ranking. Resolving tags first means the
+  // ranker receives an id array and the filter is a single indexed predicate inside
+  // it rather than a join layered over the results.
+  const { data: tagRows } = tagSlugs.length
+    ? await supabase
+        .from('hashtags')
+        .select('id, slug')
+        .in('slug', tagSlugs)
+    : { data: [] }
+
+  const tagIds = (tagRows ?? []).map((row) => row.id)
+
+  // Filter keys are omitted rather than set to null. An absent key reaches SQL as
+  // NULL (what "no filter" means); an explicit JSON null bypasses the function's
+  // defaults, and an empty array would match nothing.
+  const { data: ranked, error } = await supabase.rpc('rank_feed', {
+    p_limit: FEED_PAGE_SIZE + 1,
+    ...(platforms.length > 0 ? { p_platforms: platforms } : {}),
+    ...(tagIds.length > 0 ? { p_tags: tagIds } : {}),
+  })
+
+  if (error) {
+    // A ranking failure is not an empty feed. Saying "nothing new yet" when the
+    // database is unreachable is the single most misleading thing this page could
+    // do, so it renders the reason instead.
+    return <FeedError message={error.message} />
+  }
+
+  const rows: readonly RankedEntry[] = parseRankedRows(ranked)
+  const hasMore = rows.length > FEED_PAGE_SIZE
+  const page = hasMore ? rows.slice(0, FEED_PAGE_SIZE) : rows
+
+  // Mapped here, on the server, because resolving Storage URLs needs `@/lib/env` —
+  // which is `server-only` and cannot be imported by `FeedClient`. The first page goes
+  // through the same shape as later ones so the client has one code path.
+  const entries: FeedCardEntry[] = page.map((row) =>
+    toCardEntry({
+      payload: row.entry,
+      score: row.score,
+      // `reason_code` arrives as a plain string: PostgREST has no enum for a `text`
+      // column, and the parser deliberately does not narrow it (see `feed-payload.ts`).
+      // The cast is checked by the database's CHECK constraint and by the reason
+      // assertions in `009_feed_ranking.sql`, so an unrecognised code fails a test
+      // rather than reaching a member's screen.
+      reason: row.reason_code as FeedReason,
+      // Fydio's own copy first, then the remote URL the preview resolver captured.
+      coverUrl:
+        publicStorageUrl(coversBucket(), row.entry.thumbnailPath) ?? row.entry.thumbnailSource,
+      avatarUrl: publicStorageUrl(avatarBucket(), row.entry.author.avatarPath),
+    }),
+  )
+
+  const last = entries[entries.length - 1]
+
+  const cursor: FeedCardCursor | null =
+    hasMore && last !== undefined
+      ? { score: last.score, publishedAt: last.publishedAt, id: last.id }
+      : null
+
+  const { data: vocabulary } = await supabase
+    .from('hashtags')
+    .select('id, slug, usage_count')
+    .order('usage_count', { ascending: false })
+    .limit(12)
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -37,23 +123,20 @@ export default async function FeedPage() {
     .eq('id', userId)
     .maybeSingle()
 
-  const { data: tags } = await supabase
-    .from('profile_hashtags')
-    .select('hashtag:hashtags(slug)')
-    .eq('profile_id', userId)
-    .order('position', { ascending: true })
-
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-12">
-      <Stack gap={2}>
-        <Badge tone="brand">T03 · complete</Badge>
+    <main className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-10">
+      <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome, {profile?.display_name ?? 'friend'}
+          {profile === null ? 'Your feed' : `Hi, ${profile.display_name}`}
         </h1>
+        <p className="text-sm text-ink-muted">
+          Ranked by your hashtags, the people you&rsquo;re connected to, and how recent each
+          post is.
+        </p>
 
-        {/* The handle was already fetched for the ranking signals below; without this link it is
-            selected and never used, and a new member has no way to reach their own profile
-            without guessing a URL. */}
+        {/* The only route to the member's own profile that does not require guessing a
+            URL. The nav cannot carry it because it never reads the handle, and without
+            this link a new member has no way to reach their own page. */}
         {profile === null ? null : (
           <a
             href={`/u/${profile.handle}`}
@@ -62,43 +145,106 @@ export default async function FeedPage() {
             View your public profile (@{profile.handle})
           </a>
         )}
-      </Stack>
+      </header>
 
-      <Card title="Your ranking signals">
-        <Stack gap={3}>
-          <p className="text-sm text-ink-muted">
-            Your five hashtags are what the feed will match on. These are the ones currently
-            attached to your profile:
-          </p>
+      {/* `useSearchParams` in a Client Component opts the subtree into client-side
+          rendering, so it is wrapped in Suspense with a static fallback rather than
+          being allowed to deopt the whole feed. */}
+      <Suspense fallback={<div className="h-20" aria-hidden="true" />}>
+        <FeedFilters
+          tags={tagSlugs}
+          allTags={(vocabulary ?? []).map((row) => ({
+            id: row.id,
+            slug: row.slug,
+            usage: row.usage_count,
+          }))}
+        />
+      </Suspense>
 
-          <div className="flex flex-wrap gap-1.5">
-            {(tags ?? []).map((row, index) => (
-              <span
-                key={index}
-                className="rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-xs text-ink"
-              >
-                {slugOf(row.hashtag)}
-              </span>
-            ))}
-          </div>
-        </Stack>
-      </Card>
-
-      <Card title="The feed is not built yet">
-        <p className="text-sm text-ink-muted">
-          Ranking, transparency and freshness arrive in the next release. Everything you need
-          for it is in place: your profile carries exactly five hashtags, and confirmed friends
-          are recorded as mutual connections.
-        </p>
-      </Card>
+      {entries.length === 0 ? (
+        <EmptyState filtered={platforms.length > 0 || tagSlugs.length > 0} />
+      ) : (
+        <FeedClient
+          initialEntries={entries}
+          initialCursor={cursor}
+          platforms={platforms.length > 0 ? platforms : undefined}
+          tags={tagIds.length > 0 ? tagIds : undefined}
+        />
+      )}
     </main>
   )
 }
 
-function slugOf(value: unknown): string {
-  if (typeof value !== 'object' || value === null) return ''
+/** Page size. Mirrors `app.feed_page_size`, the SQL default of 20. */
+const FEED_PAGE_SIZE = 20
 
-  const slug = (value as { slug?: unknown }).slug
+/** `?platform=a&platform=b` and `?platform=a` both mean a list. */
+function asList(value: string | string[] | undefined): string[] {
+  if (value === undefined) return []
 
-  return typeof slug === 'string' ? `#${slug}` : ''
+  return Array.isArray(value) ? value : [value]
+}
+
+/**
+ * Narrow a query parameter to a real platform.
+ *
+ * A hand-typed `?platform=facebook` must not reach the RPC: the parameter is
+ * user-controlled and the generated types say `platform_kind[]`, but a value the
+ * enum has never heard of would fail the whole query and blank the feed rather than
+ * being ignored.
+ */
+function isPlatform(value: string): value is Platform {
+  return (PLATFORMS as readonly string[]).includes(value)
+}
+
+/**
+ * The empty feed.
+ *
+ * Distinguishes "no filters, genuinely nothing" from "the filter matched nothing",
+ * because those need different words. "Nothing new yet — adjust your hashtags or
+ * check back soon" is right for the first and actively misleading for the second:
+ * the member's hashtags are fine, the filter is not.
+ */
+function EmptyState({ filtered }: { readonly filtered: boolean }) {
+  if (filtered) {
+    return (
+      <div className="rounded-card border border-border bg-surface px-5 py-10 text-center">
+        <h2 className="text-sm font-medium text-ink">Nothing matches these filters</h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          Try removing a platform or tag to widen the search.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-card border border-border bg-surface px-5 py-10 text-center">
+      <h2 className="text-sm font-medium text-ink">Nothing new yet</h2>
+      <p className="mt-1 text-sm text-ink-muted">
+        Adjust your hashtags on your profile, or check back soon.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * A ranking failure, stated plainly.
+ *
+ * Deliberately does NOT render the reason text to the member — a PostgREST error can
+ * name tables and functions. It is logged and replaced with something honest.
+ */
+function FeedError({ message }: { readonly message: string }) {
+  console.error('rank_feed failed', message)
+
+  return (
+    <main className="mx-auto flex max-w-2xl flex-col gap-4 px-6 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight">Your feed</h1>
+      <p
+        role="alert"
+        className="rounded-control border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger"
+      >
+        The feed could not be loaded just now. Please try again in a moment.
+      </p>
+    </main>
+  )
 }

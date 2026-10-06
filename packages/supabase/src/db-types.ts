@@ -20,6 +20,7 @@
  * Every alias is a direct re-export rather than a hand-written shape, so there is no
  * second definition to fall out of date.
  */
+import type { RankedFeedRow } from './feed-payload.js'
 import type { Database, Enums, Tables, TablesInsert } from './types.js'
 
 /* --- Identity ------------------------------------------------------------------ */
@@ -125,13 +126,21 @@ export interface ReputationSummary {
   readonly badge: 'mentor' | 'trusted' | 'established' | null
 }
 
-/** A ranked feed item, as returned by `rank_feed`. */
-export interface RankedEntry {
-  readonly rank: number
-  readonly entry: ContentEntry
-  readonly score: number
-  readonly reason_code: 'shared_hashtag' | 'friend' | 'fresh' | 'new_creator'
-}
+/**
+ * A ranked feed item, as returned by `rank_feed`.
+ *
+ * The `entry` half is NOT declared here. PostgREST types a function returning
+ * `jsonb` as `Json`, so this shape has to be established by parsing — see
+ * `parseRankedRow` in `./feed-payload.js` — and a hand-written interface beside it
+ * would be a second definition to keep in step with the parser.
+ */
+export type RankedEntry = RankedFeedRow
+
+/**
+ * Re-exported from `./feed-payload.js` so a consumer naming a feed type has one
+ * import rather than reaching past this file.
+ */
+export type { FeedEntryParsed, RankedFeedRow } from './feed-payload.js'
 
 /** Re-exported so consumers need not reach into the generated file. */
 export type { Database, Enums, Tables, TablesInsert }

@@ -14,6 +14,14 @@
  */
 export type { CookieStore, CookieOptions } from './server.js'
 export type { Database, FydioClient } from './types.js'
+
+/**
+ * Runtime parsing for `rank_feed`'s jsonb payload.
+ *
+ * The one place where a value from the database is turned into a typed object. Kept
+ * out of the type-only exports above because it is code, not a type.
+ */
+export { feedEntryPayloadSchema, parseRankedRow, parseRankedRows } from './feed-payload.js'
 export type {
   ContentEntry,
   ContentHashtag,
@@ -24,6 +32,8 @@ export type {
   DurationEvent,
   EligibilityState,
   EntryState,
+  FeedEntryParsed,
+  RankedFeedRow,
   Feedback,
   FeedbackRating,
   FeedImpression,

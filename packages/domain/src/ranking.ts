@@ -16,6 +16,15 @@ export interface RankingWeights {
   hashtagWeight: number
   /** Added when the author has no feedback yet. */
   feedbackNeedBoost: number
+  /**
+   * Multiplier on the overlap against the "more like this" tag pool.
+   *
+   * Added in T07, when the tuning controls shipped. It is a separate term from
+   * `hashtagWeight` on purpose: a profile hashtag is an ambient interest the member
+   * set once, while a "more like this" press is a deliberate act. They should not be
+   * able to cancel out or be retuned as one knob.
+   */
+  moreLikeBoost: number
   /** Multiplier on the freshness decay factor. */
   freshnessWeight: number
   /** Multiplier applied once a creator's cap is exceeded. */
@@ -28,6 +37,7 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
   friendBoost: 0.35,
   hashtagWeight: 1.0,
   feedbackNeedBoost: 0.15,
+  moreLikeBoost: 0.1,
   freshnessWeight: 1.0,
   diversityPenalty: 0.5,
   platformPenalty: 0.75,
@@ -93,8 +103,12 @@ export interface CandidateScore {
   relevance: number
   friendship: number
   feedbackNeed: number
+  /** The `more like this` affinity term. Zero when the viewer has liked nothing. */
+  moreLike: number
   freshness: number
   overlap: number
+  /** Overlap against the liked-tag pool, before the `moreLikeBoost` multiplier. */
+  likedOverlap: number
 }
 
 /**
@@ -103,10 +117,19 @@ export interface CandidateScore {
  * Deliberately isolated from feed assembly so T07 can assert this formula on its
  * own against the SQL implementation — one expression, easy to diff.
  *
- *   score = (overlap * hashtagWeight + friendBoost + feedbackNeed) + freshness
+ *   score = (overlap * hashtagWeight * freshnessWeight)
+ *         + friendship
+ *         + feedbackNeed
+ *         + (likedOverlap * moreLikeBoost)
+ *         + freshness
  *
  * The additive form keeps each signal independently tunable and lets a member
  * with no shared hashtags still receive a ranked feed rather than an empty one.
+ *
+ * `likedHashtags` defaults to empty, which contributes exactly 0 — so a caller
+ * that knows nothing about the T07 tuning controls produces the same score it did
+ * before they existed, and the SQL's `liked_tags` array coalescing to `'{}'`
+ * mirrors that default rather than special-casing it.
  */
 export function scoreCandidate(
   candidate: RankCandidate,
@@ -115,6 +138,8 @@ export function scoreCandidate(
     weights?: RankingWeights
     now?: Date
     halfLifeHours?: number
+    /** Tags of entries this viewer pressed "more like this" on. */
+    likedHashtags?: readonly string[]
   } = {},
 ): CandidateScore {
   const weights = options.weights ?? DEFAULT_WEIGHTS
@@ -124,14 +149,30 @@ export function scoreCandidate(
   const ageHours = (now.getTime() - candidate.createdAt.getTime()) / HOURS_PER_MS
   const freshness = freshnessDecay(ageHours, halfLifeHours)
   const overlap = hashtagOverlap(candidate.hashtags, profileHashtags)
+  const likedOverlap = hashtagOverlap(candidate.hashtags, options.likedHashtags ?? [])
 
   const relevance = overlap * weights.hashtagWeight
   const friendship = candidate.isFriend ? weights.friendBoost : 0
   const feedbackNeed = candidate.hasFeedback ? 0 : weights.feedbackNeedBoost
+  const moreLike = likedOverlap * weights.moreLikeBoost
 
-  const score = relevance * weights.freshnessWeight + friendship + feedbackNeed + freshness
+  const score =
+    relevance * weights.freshnessWeight +
+    friendship +
+    feedbackNeed +
+    moreLike +
+    freshness
 
-  return { score, relevance, friendship, feedbackNeed, freshness, overlap }
+  return {
+    score,
+    relevance,
+    friendship,
+    feedbackNeed,
+    moreLike,
+    freshness,
+    overlap,
+    likedOverlap,
+  }
 }
 
 /**

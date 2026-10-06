@@ -12,12 +12,28 @@ export interface ViewerContext {
   viewerId: string
   /** The viewer's profile hashtags, lowercased and without the leading `#`. */
   profileHashtags: readonly string[]
+  /**
+   * Tags of entries this viewer pressed "more like this" on (T07).
+   *
+   * The affinity signal is the TAGS, not the entries: pressing it once on a
+   * motion-graphics post should lift every other motion-graphics post. Omitting it
+   * contributes exactly 0 to every score.
+   */
+  likedHashtags: readonly string[]
   /** Ids already shown above this candidate, in display order. */
   seenEntryIds: readonly string[]
-  /** Author ids already represented in the results so far. */
-  seenAuthors: ReadonlySet<string>
-  /** Platforms already represented in the results so far. */
-  seenPlatforms: ReadonlySet<string>
+  /**
+   * How many entries each author has already occupied in the results so far.
+   *
+   * A COUNT, not a set. A `Set<string>` cannot represent "this author already
+   * appeared twice", which is precisely the case the cap exists for: with a set, a
+   * caller who had seen a creator twice still reports 1, the cap never trips, and
+   * the third entry is served undemoted. The counts are what `ranked`'s running
+   * counters actually need.
+   */
+  seenAuthors: ReadonlyMap<string, number>
+  /** How many entries each platform has already occupied. Same reasoning. */
+  seenPlatforms: ReadonlyMap<string, number>
 }
 
 export interface DiversityLimits {
@@ -41,6 +57,8 @@ export interface RankedEntry {
   hashtagOverlap: number
   /** Exponential freshness decay in [0, 1]. */
   freshness: number
+  /** The `more like this` affinity term. Zero when the viewer has liked nothing. */
+  moreLike: number
   /** True when a diversity cap demoted this entry. */
   demoted: boolean
 }
@@ -65,6 +83,12 @@ export interface RankOptions {
  *
  * Deterministic: ties break on `createdAt` then `id`, so identical input always
  * produces identical output. A feed that reshuffles on refresh reads as broken.
+ *
+ * PARITY WITH SQL. This is the reference the `rank_feed` function is diffed against
+ * by `apps/web/test/ranking.regression.test.ts`, so both the ordering and the
+ * penalty have to match it term for term — including the fact that the cap is a
+ * running count in DISPLAY order, which is what `row_number() over (partition by
+ * author_id ...)` computes in SQL.
  */
 export function rankFeed(
   candidates: readonly RankCandidate[],
@@ -87,7 +111,12 @@ export function rankFeed(
     })
     .map((candidate) => ({
       candidate,
-      score: scoreCandidate(candidate, viewer.profileHashtags, { weights, now, halfLifeHours }),
+      score: scoreCandidate(candidate, viewer.profileHashtags, {
+        weights,
+        now,
+        halfLifeHours,
+        likedHashtags: viewer.likedHashtags,
+      }),
     }))
 
   scored.sort((a, b) => {
@@ -104,16 +133,17 @@ export function rankFeed(
   const authorCounts = new Map<string, number>()
   const platformCounts = new Map<string, number>()
 
-  // Seed from what the viewer has already been shown, so caps apply across pages
-  // rather than restarting on every fetch.
-  for (const authorId of viewer.seenAuthors) {
-    authorCounts.set(authorId, (authorCounts.get(authorId) ?? 0) + 1)
+  // Seeded from what the viewer has already been shown, so caps apply ACROSS pages
+  // rather than restarting on every fetch. This is what stops a prolific creator
+  // appearing twice on page 1 and twice more at the top of page 2.
+  for (const [authorId, count] of viewer.seenAuthors) {
+    authorCounts.set(authorId, count)
   }
-  for (const platform of viewer.seenPlatforms) {
-    platformCounts.set(platform, (platformCounts.get(platform) ?? 0) + 1)
+  for (const [platform, count] of viewer.seenPlatforms) {
+    platformCounts.set(platform, count)
   }
 
-  return scored.map(({ candidate, score }) => {
+  const penalized = scored.map(({ candidate, score }) => {
     const authorCount = authorCounts.get(candidate.authorId) ?? 0
     const platformCount = platformCounts.get(candidate.platform) ?? 0
 
@@ -129,12 +159,35 @@ export function rankFeed(
 
     return {
       id: candidate.id,
+      candidate,
       score: finalScore,
       baseScore: score.score,
       reasons: explainRank(candidate, score.overlap),
       hashtagOverlap: score.overlap,
       freshness: score.freshness,
+      moreLike: score.moreLike,
       demoted: overCreatorCap || overPlatformCap,
     }
   })
+
+  // Re-sorted by the PENALISED score.
+  //
+  // Without this the penalty would be cosmetic: a demoted entry would keep the slot
+  // its raw score earned it, so a prolific creator could still fill the first page
+  // while the score column quietly claimed otherwise. Re-sorting is what makes the
+  // cap observable, and it is why the entry can be demoted without being dropped.
+  //
+  // The tie-breaks are identical to the ones above and deliberately so: SQL orders
+  // by `(final_score desc, published_at desc, id asc)` and the regression test
+  // compares ORDER as well as score.
+  penalized.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+
+    const timeDelta = b.candidate.createdAt.getTime() - a.candidate.createdAt.getTime()
+    if (timeDelta !== 0) return timeDelta
+
+    return a.candidate.id.localeCompare(b.candidate.id)
+  })
+
+  return penalized.map(({ candidate: _candidate, ...entry }) => entry)
 }
