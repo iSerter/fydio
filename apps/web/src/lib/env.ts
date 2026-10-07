@@ -31,6 +31,11 @@ export function coversBucket(): string {
   return getServerEnv().STORAGE_BUCKET_COVERS
 }
 
+/** The feedback Storage bucket name. */
+export function feedbackBucket(): string {
+  return getServerEnv().STORAGE_BUCKET_FEEDBACK
+}
+
 /** Platforms allowed for submission, from PLATFORM_ALLOWLIST. */
 export function platformAllowlist(): readonly string[] {
   return getServerEnv().PLATFORM_ALLOWLIST

@@ -34,24 +34,28 @@ export interface ConsentToggleProps {
 export function ConsentToggle({ granted, grantedAt }: ConsentToggleProps) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [optimistic, setOptimistic] = useState<boolean | null>(null)
+
+  const isChecked = optimistic ?? granted
 
   async function toggle(next: boolean) {
     setBusy(true)
     setMessage(null)
+    setOptimistic(next)
 
     try {
       const result = await setDurationConsent(next)
 
       if (!result.ok) {
+        setOptimistic(null)
         setMessage(result.message ?? 'That change could not be saved.')
 
         return
       }
 
-      // The server re-renders this page after the action, so there is nothing to
-      // set here. Saying so explicitly beats an optimistic flip that could
-      // disagree with the row that actually got written.
+      setOptimistic(null)
     } catch (error) {
+      setOptimistic(null)
       setMessage(error instanceof Error ? error.message : 'That change could not be saved.')
     } finally {
       setBusy(false)
@@ -63,7 +67,7 @@ export function ConsentToggle({ granted, grantedAt }: ConsentToggleProps) {
       <label className="flex items-start gap-3 text-sm">
         <input
           type="checkbox"
-          checked={granted}
+          checked={isChecked}
           disabled={busy}
           onChange={(event) => {
             void toggle(event.target.checked)
@@ -72,7 +76,7 @@ export function ConsentToggle({ granted, grantedAt }: ConsentToggleProps) {
         />
         <span>
           Record how long I keep a Fydio-opened tab active, as a rough range
-          {grantedAt !== null ? (
+          {isChecked && grantedAt !== null ? (
             <span className="text-ink-subtle"> — on since {formatDate(grantedAt)}</span>
           ) : null}
         </span>

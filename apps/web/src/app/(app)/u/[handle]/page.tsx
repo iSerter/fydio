@@ -1,14 +1,16 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { Badge, Card, Stack } from '@fydio/ui'
 import { badgeForReputation, type ReputationSummary } from '@fydio/domain'
 
+import { RatingStars } from '@/components/feedback/RatingStars'
+import { ReportDialog } from '@/components/feedback/ReportDialog'
 import { ReputationCard } from '@/components/reputation/ReputationCard'
-
-import { FriendList, type FriendListEntry } from '@/components/social/FriendList'
 import { ConnectionCard } from '@/components/social/ConnectionCard'
+import { FriendList, type FriendListEntry } from '@/components/social/FriendList'
 import type { FriendshipState } from '@/components/social/FriendRequestButton'
 import { avatarBucket, publicStorageUrl } from '@/lib/env'
 import { memberClient, requireUserId } from '@/lib/server'
@@ -17,26 +19,8 @@ export const metadata: Metadata = {
   title: 'Profile | Fydio',
 }
 
-/**
- * Dynamic, and `force-dynamic` on purpose.
- *
- * Every member's profile is a distinct path, so this cannot be prerendered as a set. More
- * importantly it must not be cached at all: a cached page would keep serving a display name or
- * bio after it changed.
- */
 export const dynamic = 'force-dynamic'
 
-/**
- * A member's public profile (T03).
- *
- * REACHABLE BY ANY SIGNED-IN MEMBER, NOT BY ANONYMOUS VISITORS. "Public" in a private,
- * invite-only community means "visible to other members" -- the brief's own framing, and the
- * reason the proxy does not list `/u` in its allowlist. RLS agrees: `profiles_read` is scoped
- * `to authenticated`, so an anon request would return nothing even if the proxy were bypassed.
- *
- * Handles are `citext` with a unique index, so the lookup is case-insensitive by construction --
- * `/u/AdaLovelace` and `/u/adalovelace` are the same member and neither 404s.
- */
 export default async function PublicProfilePage({
   params,
 }: {
@@ -81,8 +65,6 @@ export default async function PublicProfilePage({
     .select('platform, url')
     .eq('profile_id', profile.id)
 
-  // `accepted` only. A pending request is not a friendship, and listing one would tell the
-  // viewer they have a friend who has not agreed to it.
   const { data: friendRows } = await supabase
     .from('friendships')
     .select('requester_id, addressee_id')
@@ -111,11 +93,6 @@ export default async function PublicProfilePage({
 
   const isSelf = profile.id === viewerId
 
-  // The pair's CURRENT state, read server-side for the same reason the friends list filters to
-  // `accepted`: the state machine lives in SQL, and the button must render what is true rather
-  // than what the viewer might want. Filtering by state here would make a pending request
-  // invisible and permanently offer "Add friend" to someone who already asked -- which would
-  // then fail server-side, having told the member they did something wrong.
   const { data: pairRow } = isSelf
     ? { data: null }
     : await supabase
@@ -131,40 +108,71 @@ export default async function PublicProfilePage({
 
   const avatarUrl = publicStorageUrl(avatarBucket(), profile.avatar_path)
 
+  // 1. Shared entries
+  const { data: sharedEntries } = await supabase
+    .from('content_entries')
+    .select('id, title, platform, published_at')
+    .eq('author_id', profile.id)
+    .eq('status', 'active')
+    .order('published_at', { ascending: false })
+    .limit(5)
+
+  // 2. Rated feedback authored by this member
+  const { data: ratedFeedbackRows } = await supabase
+    .from('feedback')
+    .select(`
+      id, entry_id, body, created_at,
+      entry:content_entries(id, title, platform),
+      ratings:feedback_ratings!inner(score)
+    `)
+    .eq('author_id', profile.id)
+    .is('removed_at', null)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-12">
       <Card>
         <Stack gap={4}>
-          <div className="flex items-center gap-4">
-            {avatarUrl === null ? (
-              <div
-                aria-hidden="true"
-                className="h-20 w-20 rounded-full border border-border bg-surface-muted"
-              />
-            ) : (
-              // `next/image` with `unoptimized`: the source is a public Storage object already
-              // stored as a 512px WebP under 200 KB, so the optimiser has nothing to add.
-              <Image
-                src={avatarUrl}
-                alt=""
-                width={80}
-                height={80}
-                unoptimized
-                className="h-20 w-20 rounded-full border border-border object-cover"
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              {avatarUrl === null ? (
+                <div
+                  aria-hidden="true"
+                  className="h-20 w-20 rounded-full border border-border bg-surface-muted"
+                />
+              ) : (
+                <Image
+                  src={avatarUrl}
+                  alt=""
+                  width={80}
+                  height={80}
+                  unoptimized
+                  className="h-20 w-20 rounded-full border border-border object-cover"
+                />
+              )}
+
+              <div className="min-w-0">
+                <h1 className="truncate text-2xl font-semibold tracking-tight">
+                  {profile.display_name}
+                </h1>
+                <p className="truncate text-sm text-ink-subtle">@{profile.handle}</p>
+                {profile.role === 'admin' ? (
+                  <Badge tone="brand" className="mt-1">
+                    admin
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+
+            {!isSelf && (
+              <ReportDialog
+                targetType="user"
+                targetId={profile.id}
+                targetLabel={`@${profile.handle}`}
+                triggerLabel="Report profile"
               />
             )}
-
-            <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold tracking-tight">
-                {profile.display_name}
-              </h1>
-              <p className="truncate text-sm text-ink-subtle">@{profile.handle}</p>
-              {profile.role === 'admin' ? (
-                <Badge tone="brand" className="mt-1">
-                  admin
-                </Badge>
-              ) : null}
-            </div>
           </div>
 
           {profile.bio === null ? null : <p className="text-ink-muted">{profile.bio}</p>}
@@ -205,19 +213,27 @@ export default async function PublicProfilePage({
         <Card title="This is you">
           <Stack gap={3}>
             <p className="text-sm text-ink-muted">
-              Edit your display name, photo, bio and hashtags from your profile settings.
+              Manage your display name, bio, hashtags, and view your private feedback portfolio.
             </p>
-            <a
-              href="/settings/profile"
-              className="inline-flex w-fit items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-surface-muted"
-            >
-              Edit profile
-            </a>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/settings/profile"
+                className="inline-flex w-fit items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-surface-muted"
+              >
+                Edit profile
+              </Link>
+              <Link
+                href="/dashboard/feedback"
+                className="inline-flex w-fit items-center justify-center rounded-control bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                Feedback Portfolio
+              </Link>
+            </div>
           </Stack>
         </Card>
       ) : null}
 
-      {isSelf ? null : (
+      {!isSelf && (
         <ConnectionCard
           viewerId={viewerId}
           otherId={profile.id}
@@ -229,12 +245,53 @@ export default async function PublicProfilePage({
 
       <FriendList friends={friends} />
 
-      {/* Entries, feedback and reputation land in T04/T06/T09. The placeholder says so rather
-          than rendering an empty section with no explanation. */}
+      {/* Shared entries */}
       <Card title="Things shared">
-        <p className="text-sm text-ink-muted">
-          Nothing shared yet. Sharing and feedback arrive in a later release.
-        </p>
+        {(sharedEntries ?? []).length === 0 ? (
+          <p className="text-sm text-ink-muted">Nothing shared yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {(sharedEntries ?? []).map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
+                <Link href={`/c/${entry.id}`} className="text-sm font-medium text-ink hover:text-brand transition line-clamp-1">
+                  {entry.title ?? `Entry ${entry.id.slice(0, 8)}`}
+                </Link>
+                <span className="text-xs text-ink-subtle uppercase">{entry.platform}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {/* Public rated feedback */}
+      <Card title="Rated Feedback Highlights">
+        {(ratedFeedbackRows ?? []).length === 0 ? (
+          <p className="text-sm text-ink-muted">No rated feedback highlights yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {(ratedFeedbackRows ?? []).map((item) => {
+              const entry = item.entry as unknown as { id: string; title: string | null; platform: string } | null
+              const ratingsRaw = item.ratings as unknown as { score: number }[] | { score: number } | null
+              const r = Array.isArray(ratingsRaw) ? ratingsRaw[0] : ratingsRaw
+              return (
+                <li key={item.id} className="rounded-control border border-border bg-surface-muted p-3">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <Link href={`/c/${item.entry_id}`} className="font-semibold text-ink hover:text-brand line-clamp-1">
+                      On: {entry?.title ?? `Entry ${item.entry_id.slice(0, 8)}`}
+                    </Link>
+                    {typeof r?.score === 'number' && (
+                      <div className="flex items-center gap-1 font-semibold text-ink">
+                        <RatingStars score={r.score} />
+                        <span>{r.score}/10</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-ink line-clamp-2">{item.body}</p>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </Card>
     </main>
   )

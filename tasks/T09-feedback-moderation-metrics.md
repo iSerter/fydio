@@ -1,6 +1,6 @@
 # T09 — Feedback Surfaces, Moderation Console & Success Metrics
 
-**Status:** Not started
+**Status:** completed
 **Depends on:** T05, T06, T07, T08
 **Blocks:** T10
 **Brief reference:** §7 Feedback, §8 Reputation, §9 Credit safeguards, §Include "Optional feedback with text and up to three images", "Creator feedback inbox and 1–10 feedback ratings", "Admin controls for users, content, tags, reports, and moderation", §Success metrics.

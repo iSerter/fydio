@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { getSessionUser } from '@fydio/supabase/session'
 
 import { ReturnPrompt } from '@/components/entry/ReturnPrompt'
-import { cookieStore } from '@/lib/server'
+import { cookieStore, memberClient } from '@/lib/server'
 import { AppNav } from './AppNav'
 
 /**
@@ -23,10 +23,20 @@ import { AppNav } from './AppNav'
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser(await cookieStore())
+  let isAdmin = false
+  if (user) {
+    const supabase = await memberClient()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+    isAdmin = profile?.role === 'admin'
+  }
 
   return (
     <div className="min-h-dvh">
-      <AppNav userId={user?.id ?? null} />
+      <AppNav userId={user?.id ?? null} isAdmin={isAdmin} />
 
       {/* The return-to-Fydio prompt lives in the shell rather than on a page, because
           the return leg does not resume where it left off: the member comes back to

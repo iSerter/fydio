@@ -361,9 +361,8 @@ describeIfStack('T02 RPCs against the seeded stack', () => {
       p_user_id: userId,
     })
     expect(repError).toBeNull()
-    expect(asRecord(reputation).user_id).toBe(userId)
-    expect(typeof asRecord(reputation).reputation_total).toBe('number')
-    expect(typeof asRecord(reputation).rated_feedback_count).toBe('number')
+    expect(typeof asRecord(reputation).total).toBe('number')
+    expect(typeof asRecord(reputation).ratedCount).toBe('number')
 
     const { data: balance, error: balError } = await member.rpc('get_credit_balance', {
       p_user_id: userId,

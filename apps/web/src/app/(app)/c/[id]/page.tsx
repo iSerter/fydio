@@ -3,7 +3,11 @@ import { notFound } from 'next/navigation'
 
 import { EntryCard, type EntryTag } from '@/components/entry/EntryCard'
 import { EntryControls } from '@/components/entry/EntryControls'
-import { publicStorageUrl } from '@/lib/env'
+import {
+  EntryFeedbackSection,
+  type FeedbackItemData,
+} from '@/components/feedback/EntryFeedbackSection'
+import { avatarBucket, publicStorageUrl } from '@/lib/env'
 import { memberClient, requireUserId } from '@/lib/server'
 import { getServerEnv } from '@fydio/env/server'
 
@@ -14,14 +18,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: `Entry ${id.slice(0, 8)} | Fydio` }
 }
 
-/**
- * Public entry page (T04) at /c/[id].
- *
- * "Public" means visible to every signed-in member when active; the author can
- * always see their own even when hidden. The outbound link always points at the
- * ORIGINAL submitted URL. Placeholders mark the T08 open/click actions and the
- * T09 feedback section.
- */
 export default async function EntryPage({
   params,
   searchParams,
@@ -69,6 +65,67 @@ export default async function EntryPage({
     ? publicStorageUrl(getServerEnv().STORAGE_BUCKET_COVERS, entry.thumbnail_path)
     : null
 
+  // Check whether viewer has opened the entry
+  const { data: openedRow } = await supabase
+    .from('feed_impressions')
+    .select('opened')
+    .eq('entry_id', id)
+    .eq('viewer_id', userId)
+    .eq('opened', true)
+    .maybeSingle()
+
+  const hasOpened = Boolean(openedRow)
+
+  // Fetch feedback for this entry
+  const { data: feedbackRows } = await supabase
+    .from('feedback')
+    .select(`
+      id, entry_id, body, tags, image_paths, created_at, edited_at, eligibility,
+      author:profiles!feedback_author_id_fkey(id, display_name, handle, avatar_path, reputation_total),
+      ratings:feedback_ratings(score, created_at)
+    `)
+    .eq('entry_id', id)
+    .is('removed_at', null)
+    .order('created_at', { ascending: false })
+
+  const feedbackList: FeedbackItemData[] = (feedbackRows ?? []).map((row) => {
+    const fbAuthor = row.author as unknown as {
+      id: string
+      display_name: string
+      handle: string
+      avatar_path: string | null
+      reputation_total: number
+    } | null
+
+    const ratingsRaw = row.ratings as unknown as
+      | { score: number; created_at: string }[]
+      | { score: number; created_at: string }
+      | null
+    const ratingRow = Array.isArray(ratingsRaw) ? ratingsRaw[0] : ratingsRaw
+
+    return {
+      id: row.id,
+      entryId: row.entry_id,
+      author: {
+        id: fbAuthor?.id ?? '',
+        displayName: fbAuthor?.display_name ?? 'Member',
+        handle: fbAuthor?.handle ?? 'member',
+        avatarUrl: fbAuthor?.avatar_path
+          ? publicStorageUrl(avatarBucket(), fbAuthor.avatar_path)
+          : null,
+        reputationTotal: fbAuthor?.reputation_total ?? 0,
+      },
+      body: row.body,
+      tags: row.tags,
+      imagePaths: row.image_paths,
+      createdAt: row.created_at,
+      editedAt: row.edited_at,
+      score: ratingRow?.score ?? null,
+      ratedAt: ratingRow?.created_at ?? null,
+      eligibility: row.eligibility,
+    }
+  })
+
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-12">
       {query.submitted === '1' && !isRemoved ? (
@@ -106,9 +163,13 @@ export default async function EntryPage({
 
       {isAuthor && !isRemoved ? <EntryControls entryId={entry.id} hidden={entry.status === 'hidden'} /> : null}
 
-      <p className="text-xs text-ink-subtle">
-        Feedback on this entry arrives in a later release.
-      </p>
+      <EntryFeedbackSection
+        entryId={entry.id}
+        isAuthor={isAuthor}
+        hasOpened={hasOpened}
+        currentUserId={userId}
+        initialFeedback={feedbackList}
+      />
     </main>
   )
 }

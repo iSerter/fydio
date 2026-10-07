@@ -468,7 +468,7 @@ describeIfStack('T08 telemetry surface', () => {
 
     // Tampered and unknown are the SAME answer — not merely equally unsuccessful.
     // Distinguishing them would turn the endpoint into a token oracle.
-    const tampered = `${token.slice(0, 63)}0`
+    const tampered = token.endsWith('0') ? `${token.slice(0, 63)}1` : `${token.slice(0, 63)}0`
     const unknown = 'f'.repeat(64)
 
     const tamperedResponse = await getAsMember(`/api/opened/status?token=${tampered}`)
