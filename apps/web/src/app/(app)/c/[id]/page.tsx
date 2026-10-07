@@ -91,6 +91,7 @@ export default async function EntryPage({
       ) : null}
 
       <EntryCard
+        entryId={entry.id}
         platform={entry.platform}
         originalUrl={entry.original_url}
         title={entry.title}
@@ -106,7 +107,7 @@ export default async function EntryPage({
       {isAuthor && !isRemoved ? <EntryControls entryId={entry.id} hidden={entry.status === 'hidden'} /> : null}
 
       <p className="text-xs text-ink-subtle">
-        Feedback on this entry arrives in a later release. Open and click telemetry arrives with it.
+        Feedback on this entry arrives in a later release.
       </p>
     </main>
   )

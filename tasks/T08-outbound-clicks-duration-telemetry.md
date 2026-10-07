@@ -1,6 +1,6 @@
 # T08 — Outbound Clicks, Opened State & Duration Telemetry
 
-**Status:** Not started
+**Status:** Completed
 **Depends on:** T02, T04, T07
 **Blocks:** T09, T10
 **Brief reference:** §5 Open original content, §6 Optional browser companion, §Include "External link opening and opened-state history", §principle 3 "browsing-duration telemetry is opt-in and private".
@@ -295,41 +295,41 @@ No other member can see any of this — enforced by RLS (`duration_events` and `
 
 ## 7. Implementation steps
 
-- [ ] Migration `0024`: add `return_token` to `outbound_clicks`; `mark_entry_opened`; `validate_return_token` (viewer-scoped, 30-min expiry)
-- [ ] Migration `0025`: `duration_consents` table + `has_current_duration_consent(user_id, version)` helper
-- [ ] Migration `0026`: full `record_outbound_click` returning the token and upserting `opened`
-- [ ] Add `OpenOriginalButton` to feed cards, entry pages, and profile entry lists
-- [ ] Implement `recordOutboundClick` client helper (fire-and-forget; never blocks navigation)
-- [ ] Build `/opened/[token]` — validate token, show entry context, render the feedback prompt (feedback form itself in T09)
-- [ ] Build `/api/opened/status` poll endpoint
-- [ ] Implement the extension-token verifier (HS256, scoped, expiring) in `lib/extension-tokens.ts`
-- [ ] Build `/api/telemetry/duration` with band clamping and the server-side consent gate
-- [ ] Add the hard guard: no duration column in `duration_events` (schema-level)
-- [ ] Build `/settings/privacy` with the consent toggle, scope copy, and "delete my history" action
-- [ ] Build the viewer's own activity list (own-rows only via RLS)
-- [ ] Grep-test: `evaluate_feedback_eligibility` and other credit paths never read `duration_events`
-- [ ] Write pgTAP suite `010_telemetry.sql`
-- [ ] Write the Playwright open-and-return spec
-- [ ] Verify consent revocation immediately blocks further duration ingest
+- [x] Migration `0024`: add `return_token` to `outbound_clicks`; `mark_entry_opened`; `validate_return_token` (viewer-scoped, 30-min expiry)
+- [x] Migration `0025`: `duration_consents` table + `has_current_duration_consent(user_id, version)` helper
+- [x] Migration `0026`: full `record_outbound_click` returning the token and upserting `opened`
+- [x] Add `OpenOriginalButton` to feed cards, entry pages, and profile entry lists
+- [x] Implement `recordOutboundClick` client helper (fire-and-forget; never blocks navigation)
+- [x] Build `/opened/[token]` — validate token, show entry context, render the feedback prompt (feedback form itself in T09)
+- [x] Build `/api/opened/status` poll endpoint
+- [x] Implement the extension-token verifier (HS256, scoped, expiring) in `lib/extension-tokens.ts`
+- [x] Build `/api/telemetry/duration` with band clamping and the server-side consent gate
+- [x] Add the hard guard: no duration column in `duration_events` (schema-level)
+- [x] Build `/settings/privacy` with the consent toggle, scope copy, and "delete my history" action
+- [x] Build the viewer's own activity list (own-rows only via RLS)
+- [x] Grep-test: `evaluate_feedback_eligibility` and other credit paths never read `duration_events`
+- [x] Write pgTAP suite `010_telemetry.sql`
+- [x] Write the Playwright open-and-return spec
+- [x] Verify consent revocation immediately blocks further duration ingest
 
 ---
 
 ## 8. Acceptance criteria
 
-- [ ] Clicking "Open on [platform]" records an `outbound_clicks` row and sets `opened = true` for that member
-- [ ] The outbound `href` is the **original unmodified URL** with `target="_blank" rel="noopener noreferrer nofollow"`
-- [ ] `opened` is set for the clicking member only, never for others
-- [ ] The returned token validates only for the viewer who opened it, and expires in 30 minutes
-- [ ] A tampered or unknown token returns no data and shows a safe fallback
-- [ ] `/opened/[token]` shows the entry and a feedback prompt after a valid return
-- [ ] Duration ingest is rejected without an active, current-version consent
-- [ ] Revoking consent immediately blocks further duration events
-- [ ] Duration storage contains **only** coarse bands — no raw milliseconds column or value exists
-- [ ] An out-of-enum band is stored as `'unknown'`, never as a numeric duration
-- [ ] `duration_events` is readable only by the viewer (and admins); cross-member reads return 0 rows
-- [ ] No credit function reads `duration_events` (grep test)
-- [ ] Consent copy states it is private, opt-in, revocable, and never affects Credits or Reputation
-- [ ] No automated platform interaction exists anywhere in the code
+- [x] Clicking "Open on [platform]" records an `outbound_clicks` row and sets `opened = true` for that member
+- [x] The outbound `href` is the **original unmodified URL** with `target="_blank" rel="noopener noreferrer nofollow"`
+- [x] `opened` is set for the clicking member only, never for others
+- [x] The returned token validates only for the viewer who opened it, and expires in 30 minutes
+- [x] A tampered or unknown token returns no data and shows a safe fallback
+- [x] `/opened/[token]` shows the entry and a feedback prompt after a valid return
+- [x] Duration ingest is rejected without an active, current-version consent
+- [x] Revoking consent immediately blocks further duration events
+- [x] Duration storage contains **only** coarse bands — no raw milliseconds column or value exists
+- [x] An out-of-enum band is stored as `'unknown'`, never as a numeric duration
+- [x] `duration_events` is readable only by the viewer (and admins); cross-member reads return 0 rows
+- [x] No credit function reads `duration_events` (grep test)
+- [x] Consent copy states it is private, opt-in, revocable, and never affects Credits or Reputation
+- [x] No automated platform interaction exists anywhere in the code
 
 ---
 

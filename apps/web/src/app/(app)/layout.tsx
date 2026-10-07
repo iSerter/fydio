@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import { getSessionUser } from '@fydio/supabase/session'
 
+import { ReturnPrompt } from '@/components/entry/ReturnPrompt'
 import { cookieStore } from '@/lib/server'
 import { AppNav } from './AppNav'
 
@@ -26,6 +27,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh">
       <AppNav userId={user?.id ?? null} />
+
+      {/* The return-to-Fydio prompt lives in the shell rather than on a page, because
+          the return leg does not resume where it left off: the member comes back to
+          whatever they were doing in Fydio, and that is where the prompt belongs. */}
+      <ReturnPrompt />
 
       <div className="mx-auto w-full max-w-4xl px-6">{children}</div>
     </div>

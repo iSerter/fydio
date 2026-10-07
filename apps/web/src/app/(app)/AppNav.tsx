@@ -20,6 +20,7 @@ export function AppNav({ userId }: AppNavProps) {
     { href: '/feed', label: 'Feed' },
     { href: '/submit', label: 'Submit' },
     { href: '/settings/profile', label: 'Profile' },
+    { href: '/settings/privacy', label: 'Privacy' },
     { href: '/settings/account', label: 'Account' },
   ]
 

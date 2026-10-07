@@ -1,5 +1,6 @@
-import { PLATFORM_LABELS, type FeedReason, type Platform } from '@fydio/domain'
+import { type FeedReason, type Platform } from '@fydio/domain'
 
+import { OpenOriginalButton } from '@/components/entry/OpenOriginalButton'
 import { PlatformBadge } from '@/components/entry/PlatformBadge'
 import { TuningMenu } from '@/components/feed/TuningMenu'
 
@@ -24,9 +25,11 @@ import { RankingReasonChip } from './RankingReasonChip'
  *   * The tuning menu. Ranking without recourse to correct it is a black box with a
  *     score attached.
  *
- * NOT HERE: click tracking. The link is a plain outbound anchor. T08 owns recording
- * that the member activated it, and a card that logged its own clicks would make
- * open-rate a UI concern rather than an analytics one.
+ * NOT HERE: click tracking inline. T08 replaces the plain anchor with
+ * `OpenOriginalButton`, which is that same anchor plus a click handler — the
+ * recording lives in one component shared with the entry page and profile lists,
+ * so a third surface cannot grow its own copy of the telemetry logic and drift
+ * from it.
  *
  * STORAGE URLS ARRIVE RESOLVED, NOT AS KEYS. `avatarBucket`/`coversBucket` live in
  * `@/lib/env`, which is `server-only` — a module that reads `STORAGE_BUCKET_*` from
@@ -145,14 +148,12 @@ export function FeedEntryCard(props: FeedEntryCardProps) {
           <p className="text-xs font-medium text-brand">This creator is asking for feedback.</p>
         ) : null}
 
-        <a
-          href={props.originalUrl}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="inline-flex w-fit items-center gap-1 text-sm font-medium text-brand hover:underline"
-        >
-          Open on {PLATFORM_LABELS[props.platform]} &#8599;
-        </a>
+        <OpenOriginalButton
+          entryId={props.id}
+          platform={props.platform}
+          originalUrl={props.originalUrl}
+          source="feed"
+        />
 
         {/* The transparency line. `publishedAt` and the reason sit together at the
             bottom because they answer the same question — "why am I looking at this,

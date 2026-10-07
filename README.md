@@ -4,7 +4,7 @@
 people whose work they trust. Discover relevant content from people you know, open it
 in its original context, and give feedback that helps them improve.
 
-This repository is at **T01**: the monorepo foundation and a local Supabase stack.
+This repository is at **T08**: the monorepo foundation and a local Supabase stack.
 There is no product surface yet by design.
 
 ---

@@ -1,5 +1,6 @@
-import { displayHost, PLATFORM_LABELS, type Platform } from '@fydio/domain'
+import { displayHost, type Platform } from '@fydio/domain'
 
+import { OpenOriginalButton } from './OpenOriginalButton'
 import { PlatformBadge } from './PlatformBadge'
 
 /**
@@ -9,6 +10,10 @@ import { PlatformBadge } from './PlatformBadge'
  * `target="_blank" rel="noopener noreferrer nofollow"`. Fydio never proxies,
  * embeds, or mirrors the content. External thumbnails render with
  * `referrerPolicy="no-referrer"` — the URL is stored, not proxied.
+ *
+ * T08 replaced the inline `<a>` with `OpenOriginalButton`, which is the same
+ * anchor plus click recording. The href is untouched: the recording happens in
+ * the click handler, never in the URL.
  */
 
 export interface EntryTag {
@@ -17,6 +22,8 @@ export interface EntryTag {
 }
 
 export interface EntryCardProps {
+  /** Needed to record the click; the card has no identity without it. */
+  readonly entryId: string
   readonly platform: Platform
   readonly originalUrl: string
   readonly title: string | null
@@ -65,14 +72,12 @@ export function EntryCard(props: EntryCardProps) {
           <p className="text-xs font-medium text-brand">This creator is asking for feedback.</p>
         ) : null}
 
-        <a
-          href={props.originalUrl}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="inline-flex w-fit items-center gap-1 text-sm font-medium text-brand hover:underline"
-        >
-          Open on {PLATFORM_LABELS[props.platform]} ↗
-        </a>
+        <OpenOriginalButton
+          entryId={props.entryId}
+          platform={props.platform}
+          originalUrl={props.originalUrl}
+          source="entry_page"
+        />
         <p className="text-xs text-ink-subtle">Opens on the original platform. Fydio never mirrors content.</p>
       </div>
     </article>
