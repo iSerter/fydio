@@ -4,8 +4,7 @@
 people whose work they trust. Discover relevant content from people you know, open it
 in its original context, and give feedback that helps them improve.
 
-This repository is at **T09**: the monorepo foundation and a local Supabase stack.
-There is no product surface yet by design.
+This repository is at **T10**: full product implementation, including the optional Chrome MV3 companion extension, standalone Next.js Dockerfile, Coolify v4.11 production compose overlay, operational runbooks, and automated backup/restore/smoke tooling.
 
 ---
 
@@ -74,22 +73,26 @@ fydio/
 
 ## Commands
 
-| Command                        | What it does                                          |
-| ------------------------------ | ----------------------------------------------------- |
-| `pnpm dev`                     | run all dev servers                                   |
-| `pnpm validate`                | **lint + typecheck + test + build** — the CI gate     |
-| `pnpm format` / `format:check` | Prettier                                              |
-| `pnpm dev:stack`               | start the local Supabase stack and wait for health    |
-| `pnpm dev:stack:down`          | stop it                                               |
-| `pnpm dev:stack:reset`         | destroy volumes, recreate, re-apply migrations        |
-| `pnpm dev:stack:health`        | verify the stack is genuinely usable                  |
-| `pnpm dev:stack:logs`          | tail all stack logs                                   |
-| `pnpm secrets:generate`        | create/fill `.env` and `docker/.env` (idempotent)     |
-| `pnpm db:migrate`              | apply pending migrations                              |
-| `pnpm db:reset`                | drop, re-apply migrations, re-seed                    |
-| `pnpm db:seed`                 | run `supabase/seed.sql`                               |
-| `pnpm db:types`                | regenerate `packages/supabase/src/types.generated.ts` |
-| `pnpm bootstrap`               | one-command setup                                     |
+| Command                                | What it does                                            |
+| -------------------------------------- | ------------------------------------------------------- |
+| `pnpm dev`                             | run all dev servers                                     |
+| `pnpm validate`                        | **lint + typecheck + test + build** — the CI gate       |
+| `pnpm format` / `format:check`         | Prettier                                                |
+| `pnpm dev:stack`                       | start the local Supabase stack and wait for health      |
+| `pnpm dev:stack:down`                  | stop it                                                 |
+| `pnpm dev:stack:reset`                 | destroy volumes, recreate, re-apply migrations          |
+| `pnpm dev:stack:health`                | verify the stack is genuinely usable                    |
+| `pnpm dev:stack:logs`                  | tail all stack logs                                     |
+| `pnpm secrets:generate`                | create/fill `.env` and `docker/.env` (idempotent)       |
+| `pnpm db:migrate`                      | apply pending migrations                                |
+| `pnpm db:reset`                        | drop, re-apply migrations, re-seed                      |
+| `pnpm db:seed`                         | run `supabase/seed.sql`                                 |
+| `pnpm db:types`                        | regenerate `packages/supabase/src/types.generated.ts`   |
+| `pnpm bootstrap`                       | one-command setup                                       |
+| `pnpm --filter @fydio/extension build` | bundle Chrome MV3 companion extension to `dist/`        |
+| `bash scripts/smoke-prod.sh`           | run post-deploy production health checks                |
+| `bash scripts/backup.sh`               | dump public/auth/storage database to timestamped file   |
+| `bash scripts/restore.sh <f>`          | restore database from dump with permission verification |
 
 ---
 
@@ -180,6 +183,31 @@ The repo pins **TypeScript 5.9.3**, not 7.x. TypeScript 7 is the native Go port 
 no longer ships a JavaScript compiler API, which `typescript-eslint` requires; the
 tooling caps support at `<6.1.0`, and `eslint-config-next` depends on it. Revisit when
 typescript-eslint ships TS 7 support.
+
+---
+
+## Deployment & Operations
+
+Fydio is deployable to Coolify v4.11 as two resources from this repository:
+
+1. **Supabase Compose** (`docker/docker-compose.yml` + `docker/docker-compose.prod.yml`) — Database, Auth, Storage, and Kong API gateway with named persistent volumes.
+2. **Next.js Web Application** (`apps/web/Dockerfile`) — Multi-stage standalone Node 22 Alpine build with non-root runtime.
+
+Detailed operational runbooks:
+
+- [Coolify Deployment Runbook](docs/runbook/deploy-coolify.md) — Two-resource setup, environment variables, cron scheduling, and TLS.
+- [Operations & Runbook](docs/runbook/operations.md) — Backups, restores, secret rotations, and zero-downtime upgrades.
+- [Database Architecture & Data Model](docs/architecture/data-model.md) — Production schema, RLS policies, RPCs, and indexes.
+
+---
+
+## Chrome Companion Extension
+
+The companion extension (`apps/extension/`) is an optional Manifest V3 extension providing return-to-tab detection and coarse duration mapping:
+
+- **Strict Privacy Invariant**: Raw duration is immediately mapped into 5 coarse bands (`lt_15s`, `s15_60`, `m1_3`, `gt_3`, `unknown`). Raw timestamps are never stored or transmitted.
+- **Minimal Permissions**: Restricted strictly to `["storage", "activeTab", "tabs", "alarms"]`.
+- [Extension Privacy Documentation](docs/extension/privacy.md) — Complete permission breakdown and data flow guarantees.
 
 ---
 

@@ -1,0 +1,83 @@
+# =============================================================================
+# Fydio — Production Supabase Stack Overlay (Coolify v4.11)
+#
+# Overlays on top of docker-compose.yml for production deployments:
+#   • Exposes the API gateway (Envoy/Kong) to Coolify's reverse proxy
+#   • Leaves Studio unexposed or bound strictly to loopback
+#   • Enforces invite-only signup (`GOTRUE_DISABLE_SIGNUP=true`)
+#   • Uses persistent named volumes for PostgreSQL and Storage
+#   • Wires production SMTP and site URLs from Coolify environment variables
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# =============================================================================
+
+services:
+  api-gw:
+    restart: always
+    ports:
+      # Only the API gateway is published/routed by Coolify
+      - '${API_GW_HTTP_PORT:-8000}:8000/tcp'
+
+  studio:
+    restart: unless-stopped
+    ports:
+      # Bound to loopback so it is not publicly routed unless explicitly mapped
+      - '127.0.0.1:${STUDIO_HOST_PORT:-3002}:3000/tcp'
+
+  db:
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - db-config:/etc/postgresql-custom
+
+  auth:
+    restart: always
+    environment:
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_DISABLE_SIGNUP: 'true'
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL}
+      GOTRUE_API_EXTERNAL_URL: ${GOTRUE_API_EXTERNAL_URL:-${API_EXTERNAL_URL}}
+      GOTRUE_SMTP_HOST: ${SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT}
+      GOTRUE_SMTP_USER: ${SMTP_USER}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-Fydio}
+      GOTRUE_SMTP_MAX_FREQUENCY: ${SMTP_MAX_FREQUENCY:-1m}
+
+  rest:
+    restart: always
+
+  realtime:
+    restart: always
+
+  storage:
+    restart: always
+    volumes:
+      - storage-data:/var/lib/storage
+
+  imgproxy:
+    restart: always
+
+  meta:
+    restart: always
+
+  functions:
+    restart: always
+
+  supavisor:
+    restart: always
+
+volumes:
+  db-data:
+    name: fydio_db_data
+  db-config:
+    name: fydio_db_config
+  storage-data:
+    name: fydio_storage_data
+  deno-cache:
+    name: fydio_deno_cache

@@ -1,20 +1,27 @@
 {
   "name": "@fydio/extension",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "node ./scripts/build.mjs",
     "clean": "rm -rf dist .turbo",
-    "lint": "echo \"no lint target until T10\"",
-    "typecheck": "echo \"no typecheck target until T10\"",
-    "test": "echo \"no test target until T10\""
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fydio/domain": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "@fydio/config-eslint": "workspace:*",
+    "@fydio/config-typescript": "workspace:*",
+    "@types/chrome": "0.0.308",
+    "@types/node": "24.19.1",
+    "esbuild": "0.25.0",
+    "eslint": "10.12.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
   }
 }

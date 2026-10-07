@@ -1,6 +1,7 @@
 'use client'
 
 import { PLATFORM_LABELS, type Platform } from '@fydio/domain'
+import { getClientEnv } from '@fydio/env/client'
 
 import { rememberReturnToken } from '@/lib/return-token'
 import { recordOutboundClick, type ClickSource } from '@/lib/telemetry'
@@ -69,7 +70,10 @@ export function OpenOriginalButton({
           // cannot carry it. Storing it here is what lets `ReturnPrompt` offer the
           // entry back when the member comes to Fydio again — the whole return leg,
           // without a single byte added to somebody else's link.
-          if (click !== null) rememberReturnToken(click.returnToken, PLATFORM_LABELS[platform])
+          if (click !== null) {
+            rememberReturnToken(click.returnToken, PLATFORM_LABELS[platform])
+            notifyExtension(entryId, click.returnToken)
+          }
         })
       }}
       className={
@@ -86,4 +90,29 @@ export function OpenOriginalButton({
       <span className="sr-only">(opens in a new tab on {PLATFORM_LABELS[platform]})</span>
     </a>
   )
+}
+
+/**
+ * Inform the companion extension about an outbound click, if installed and enabled.
+ * Swallows any communication error — the extension is optional.
+ */
+function notifyExtension(entryId: string, returnToken: string): void {
+  if (typeof window === 'undefined') return
+  const extensionId = getClientEnv().NEXT_PUBLIC_EXTENSION_ID
+  if (!extensionId) return
+
+  const chromeObj = (
+    window as unknown as { chrome?: { runtime?: { sendMessage?: (...args: unknown[]) => void } } }
+  ).chrome
+  if (typeof chromeObj?.runtime?.sendMessage === 'function') {
+    try {
+      chromeObj.runtime.sendMessage(extensionId, {
+        type: 'FYDIO_OUTBOUND_CLICK',
+        entryId,
+        returnToken,
+      })
+    } catch {
+      // Ignored: extension may be uninstalled or disabled
+    }
+  }
 }

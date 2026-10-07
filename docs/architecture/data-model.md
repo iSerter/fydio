@@ -1,150 +1,121 @@
-# Data model
+# Fydio Data Model & Schema Architecture
 
-The schema in `supabase/migrations/` is the enforcement layer for the product brief.
-Where the brief states a rule — five profile hashtags, exactly three per entry, one
-Credit per submission, Reputation that cannot be spent — Postgres holds it, and the
-pgTAP suites in `supabase/tests/` prove it.
+The PostgreSQL schema in `supabase/migrations/` is the authoritative enforcement layer for the Fydio product specification. Where the product brief states a rule — five profile hashtags, exactly three per entry, one Credit per submission, Reputation that cannot be spent, coarse-only duration bands — Postgres guarantees it with constraints, triggers, and RLS policies, proven by the pgTAP test suite.
 
-> **Status:** stub. Expanded in T10, once T03–T09 have built against it.
+---
 
-## The central decision: two ledgers, two enums
+## 1. The Central Separation: Two Distinct Ledgers
 
-Fydio has two community signals and the brief is explicit that they are not
-interchangeable:
+Fydio features two community signals that are mathematically and structurally isolated:
 
-|                         | Earned by                            | Changes                   | Spendable |
-| ----------------------- | ------------------------------------ | ------------------------- | --------- |
-| **Fydio Credits**       | Eligible peer feedback               | Contributions to the feed | **Yes**   |
-| **Feedback Reputation** | Creators rating a feedback item 1–10 | A quality signal only     | **No**    |
+| Signal                  | Earned By                           | Primary Effect                   | Spendable? | Ledger Mechanics                                         |
+| :---------------------- | :---------------------------------- | :------------------------------- | :--------- | :------------------------------------------------------- |
+| **Fydio Credits**       | Eligible peer feedback on content   | Submitting entries to the feed   | **Yes**    | Status-driven (`held`, `available`, `spent`, `reversed`) |
+| **Feedback Reputation** | Entry creators rating feedback 1–10 | Social trust & quality indicator | **No**     | Strictly append-only; corrections use reversing pairs    |
 
-That separation is structural rather than conventional:
+### Architectural Guardrails
 
-- `credit_kind` and `reputation_kind` are **separate Postgres enum types**. There is no
-  shared `kind` column, so no SQL statement can write a credit into a reputation row or
-  read a rating as spendable.
-- `credit_ledger` has `status` (`held` / `available` / `spent` / `reversed`).
-  `reputation_ledger` has **no status column at all** — it is strictly append-only, with
-  corrections expressed as reversing pairs.
-- The submission path reads `credit_ledger` and nothing else. `003_reputation.sql`
-  asserts this directly by inspecting `pg_proc` for any `credit_ledger` reference in a
-  credit-awarding function, so the guarantee survives a well-meaning future edit.
+- `credit_kind` and `reputation_kind` are separate Postgres enum types. SQL cannot write a credit into a reputation ledger or treat a reputation score as spendable balance.
+- `credit_ledger` has a `status` column (`held` / `available` / `spent` / `reversed`). In contrast, `reputation_ledger` has **no status column** — it is strictly append-only.
+- Content submission checks `credit_ledger` balance and nothing else. A member with 1,000 reputation and 0 Credits cannot submit.
 
-The headline test is the negative one: a member with **500 reputation and 0 Credits
-still cannot submit**. If reputation ever became spendable, that test fails.
-
-## Tables
-
-| Table                | Purpose                      | Notes                                                           |
-| -------------------- | ---------------------------- | --------------------------------------------------------------- |
-| `profiles`           | Public member identity       | `id` references `auth.users`; reputation aggregates are derived |
-| `invites`            | Invite-only gate             | `token_hash`, never the token                                   |
-| `hashtags`           | Global tag vocabulary        | `citext` slugs, no leading `#`                                  |
-| `profile_hashtags`   | ≤5 per profile               | Deferred constraint trigger enforces the cap                    |
-| `profile_links`      | Connected public handles     | Never used for authentication                                   |
-| `friendships`        | Mutual connections           | Generated `pair_key` makes one row per pair                     |
-| `content_entries`    | Submitted content            | Exactly 3 hashtags; `url_hash` for duplicate detection          |
-| `content_hashtags`   | The entry's three tags       | Deferred constraint trigger enforces exactly 3                  |
-| `feedback`           | Optional critique            | Body 10–4000 chars, ≤3 images                                   |
-| `feedback_ratings`   | 1–10, rated once             | Unique per `feedback_id`                                        |
-| `credit_ledger`      | **Spendable** Credits        | See the balance formula below                                   |
-| `reputation_ledger`  | **Non-spendable** reputation | Append-only, no status column                                   |
-| `feed_impressions`   | Rank audit + opened state    | `mark_entry_opened()` writes here                               |
-| `feed_signals`       | More/less/hide tuning        | Affects Fydio's ranking only                                    |
-| `mutes`              | Muted creators               | A preference, not a block                                       |
-| `outbound_clicks`    | Open events                  | Also marks the entry opened, atomically                         |
-| `duration_events`    | Opt-in coarse bands          | **Private to the member**; never rewarded                       |
-| `moderation_reports` | User reports                 | One open report per member per target                           |
-| `moderation_actions` | Immutable audit trail        | Append-only; no member read policy at all                       |
-
-## The credit balance
+### Balance Formula
 
 ```
 balance = sum(delta) WHERE status IN ('available', 'spent')
 ```
 
-Each status contributes deliberately:
+- `held`: In review window; cannot be spent before it could be reversed.
+- `available`: Spendable credit earned.
+- `spent`: Negative delta (`-1`) recorded upon submission.
+- `reversed`: Movement undone; excluded from balance sum.
 
-- `held` → nothing. Pending its review window, so an abusive item cannot be spent
-  before it can be reversed.
-- `available` → `delta`. A grant, spendable.
-- `spent` → `delta`. **This is what a submission subtracts.**
-- `reversed` → nothing. The movement it recorded was undone.
+---
 
-`spent` has to be inside the sum. If spends were recorded with a status the balance
-ignored, every submission would be free while every individual statement looked
-correct — which is exactly the bug the T02 review caught in the original spec.
+## 2. Entity Relational Map
 
-A reversal flips the original row to `reversed` and inserts a paired audit row that is
-_also_ `reversed`, so the balance falls by exactly the amount, once. Doing it the other
-way round would subtract twice.
+```mermaid
+erDiagram
+    profiles ||--o{ profile_hashtags : has
+    profiles ||--o{ profile_links : displays
+    profiles ||--o{ content_entries : authors
+    profiles ||--o{ feedback : writes
+    profiles ||--o{ credit_ledger : owns
+    profiles ||--o{ reputation_ledger : accumulates
+    profiles ||--o{ duration_consents : grants
+    profiles ||--o{ duration_events : records
 
-## Spending a Credit
+    content_entries ||--|{ content_hashtags : tagged
+    content_entries ||--o{ feedback : receives
+    content_entries ||--o{ outbound_clicks : opens
+    content_entries ||--o{ feed_impressions : generates
 
-`create_content_entry()` is the most important function in the schema:
-
-1. Validate three **distinct** hashtags, all existing in the pool.
-2. Check blocked accounts and the new-member submission rate cap.
-3. Reject a duplicate URL per author.
-4. `pg_advisory_xact_lock` — **before** the balance read, not after.
-5. Read the balance; refuse if it is below the cost.
-6. Insert the spend (`-1`, `spent`) and the entry in one transaction.
-
-Step 4 is a correctness requirement. Two rapid clicks produce two overlapping
-transactions; without the lock both read the same balance, both decide they can
-afford it, and both insert. The lock serialises submissions per user and is
-transaction-scoped, so it releases itself on commit or rollback with no cleanup path.
-`rpc.integration.test.ts` proves it with two genuinely concurrent HTTP calls against a
-balance of one.
-
-## Row level security
-
-RLS is enabled on **every** table, with `force` on `credit_ledger` and
-`duration_events`. Default-deny comes from a role having zero policies, not from
-`using (false)` written everywhere.
-
-Two boundaries are worth stating:
-
-- **Credit balances are private.** A member can read only their own ledger rows.
-  `get_credit_balance()` is the sanctioned accessor and re-checks self-or-admin
-  internally, because it is SECURITY DEFINER and bypasses the policy.
-- **Duration telemetry is private** to the member who produced it, admin included.
-  There is deliberately no admin read policy — the brief treats it as the viewer's own
-  history.
-
-Recursion is avoided with `SECURITY DEFINER stable` helpers (`is_admin`,
-`can_view_entry`): a policy on `feedback` needs `content_entries`, whose policy needs
-`profiles`, and Postgres detects that cycle.
-
-## Feedback eligibility
-
-A Credit is earned here, and only here. `evaluate_feedback_eligibility()` is idempotent
-and applies, in order:
-
-1. Removed or reported → `reversed`.
-2. Per-day cap → `ineligible` / `daily_cap_reached`.
-3. Per-creator cap → `ineligible` / `per_creator_cap_reached`.
-4. Otherwise → a **held** Credit with a review window.
-
-The quality gate affects _eligibility_, not submission: a short note is stored and
-simply earns nothing, because refusing to store it would be worse for the member than
-storing something worthless.
-
-## Reputation
-
-`rate_feedback()` is entry-owner-only, rates once per item, and writes **only** to the
-reputation ledger — there is no `credit_ledger` reference anywhere in that path.
-Revisions inside the window write a reversing pair rather than editing the score, so a
-member's history of giving feedback is never silently rewritten.
-
-## Verification
-
-```bash
-pnpm db:reset      # migrations + seed, zero constraint violations
-pnpm db:test       # 83 pgTAP assertions across four suites
-pnpm db:types      # regenerate the Database type
+    feedback ||--o| feedback_ratings : rated
+    feedback ||--o{ moderation_reports : reported
 ```
 
-`rank_feed()` currently implements the deterministic baseline from the brief
-(tag match + friend affinity + freshness + feedback need), mirroring
-`scoreCandidate` in `@fydio/domain`. Diversity adjustment and cursor pagination land in
-T07.
+---
+
+## 3. Core Tables
+
+| Table                | Purpose                         | Key Constraints & Invariants                                                                                        |
+| :------------------- | :------------------------------ | :------------------------------------------------------------------------------------------------------------------ |
+| `profiles`           | Public member identity          | `id` references `auth.users(id)` ON DELETE CASCADE. Stores handle, display name, bio, avatar, and reputation cache. |
+| `invites`            | Invite gate (T03, T11)          | Stores SHA-256 hashed invite tokens (`token_hash`). `claimed_by` references `profiles(id)`.                         |
+| `hashtags`           | Global tag vocabulary           | Unique lowercase slugs (`citext`), stripped of leading `#`.                                                         |
+| `profile_hashtags`   | Interest matching               | ≤ 5 hashtags per member profile enforced by constraint trigger.                                                     |
+| `profile_links`      | Verified external handles       | Connected YouTube, Instagram, TikTok, X profile URLs.                                                               |
+| `friendships`        | Mutual creator connections      | Canonical pair key `least(user_a, user_b) \|\| ':' \|\| greatest(...)` guarantees single row per mutual pair.       |
+| `friend_requests`    | Directional friend invitations  | Unique per sender/receiver pair; prevents self-requests.                                                            |
+| `content_entries`    | Shared creative posts           | Exactly 3 hashtags required; unique SHA-256 `url_hash` prevents duplicate submissions per creator.                  |
+| `content_hashtags`   | Entry tags                      | Deferred constraint trigger enforces `count(*) = 3` per entry.                                                      |
+| `feedback`           | Constructive peer feedback      | 40–4,000 chars, ≤ 3 image URLs. Requires entry to have been marked `opened` by the author.                          |
+| `feedback_ratings`   | 1–10 creator evaluations        | Rated once per feedback item by the content author. Revisions generate ledger adjustment pairs.                     |
+| `credit_ledger`      | Spendable Credits               | Transaction-scoped advisory locks prevent double-spend during concurrent submissions.                               |
+| `reputation_ledger`  | Quality trust score             | Append-only ledger calculating cumulative creator reputation.                                                       |
+| `outbound_clicks`    | Outbound platform visits        | Records link activation; mints signed 30-minute `return_token`.                                                     |
+| `feed_impressions`   | Discovery audit & open tracking | Atomically tracks `opened = true` and rank scores.                                                                  |
+| `feed_signals`       | Member feed tuning              | Positive ('more') / negative ('less') tuning signals; affects feed ranking only.                                    |
+| `duration_consents`  | Telemetry opt-in audit          | Records explicit grant/revoke and `consent_version` (`2026-01-dur-v1`).                                             |
+| `duration_events`    | Coarse active-tab duration      | **No duration_ms column exists**. Stores only coarse band enum (`lt_15s`, `s15_60`, `m1_3`, `gt_3`, `unknown`).     |
+| `moderation_reports` | Community safety reports        | Deduped per reporter and target; routes to admin moderation queue.                                                  |
+| `moderation_actions` | Immutable audit trail           | Append-only record of moderator interventions (hide, suspend, dismiss).                                             |
+
+---
+
+## 4. Key Stored Procedures
+
+### `create_content_entry`
+
+1. Validates exactly 3 distinct existing hashtags.
+2. Verifies author is not suspended or rate-limited.
+3. Acquires `pg_advisory_xact_lock(hashtext('credit:' || auth.uid()::text))` to serialize balance checks.
+4. Confirms `get_credit_balance(auth.uid()) >= 1`.
+5. Inserts entry, tags, and spends 1 Credit (`-1`, `spent`) atomically.
+
+### `record_outbound_click`
+
+1. Inserts audit row in `outbound_clicks`.
+2. Upserts `feed_impressions` marking `opened = true` and `opened_at = now()`.
+3. Mints a cryptographic 64-hex `return_token` valid for 30 minutes.
+
+### `ingest_duration_event`
+
+1. Executed exclusively by `service_role`.
+2. Calls `has_current_duration_consent(p_user_id, current_version)` inside SQL.
+3. Rejects with `42501` if active consent is missing or revoked.
+4. Clamps band to enum; stores coarse band only.
+
+### `get_migration_head`
+
+Returns the highest applied version string from `supabase_migrations.schema_migrations` for continuous deploy health checks.
+
+---
+
+## 5. Security & Row Level Security (RLS)
+
+RLS is enabled on **100% of tables**:
+
+- `credit_ledger` and `duration_events` have `FORCE ROW LEVEL SECURITY`.
+- `duration_events` is readable **only by the owning member**; cross-member queries return 0 rows.
+- Private member information (credit balance, email, duration history) is completely shielded from public access.

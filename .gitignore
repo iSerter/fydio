@@ -30,10 +30,9 @@ coverage/
 # Supabase CLI scratch
 supabase/.temp/
 
-# Generated database types — a build artefact of the schema, not source.
-# Regenerate with `pnpm db:types`; committing a stale copy would silently
-# disagree with the database.
-packages/supabase/src/types.generated.ts
+# Generated database types — commit with migrations so Docker and CI can build without a live DB.
+# Regenerate with `pnpm db:types` after schema changes.
+
 
 # Logs
 *.log
