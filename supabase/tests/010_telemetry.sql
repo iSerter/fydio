@@ -331,7 +331,7 @@ select is(
 -- "the extension reported it, so it must be fine" from being a policy.
 select throws_ok(
   $$ select public.ingest_duration_event(
-       (select id from public.profiles where id <> current_setting('t08.ada')::uuid limit 1),
+       current_setting('t08.cal')::uuid,
        current_setting('t08.entry')::uuid, 's15_60', false) $$,
   '42501'::varchar,
   null,

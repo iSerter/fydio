@@ -10,6 +10,7 @@ const TABS = [
   { href: '/admin/content', label: 'Content' },
   { href: '/admin/tags', label: 'Tags' },
   { href: '/admin/credits', label: 'Credits' },
+  { href: '/admin/invites', label: 'Invites' },
 ]
 
 export function AdminSubNav() {

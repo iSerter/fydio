@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "invite:new": "tsx --conditions=react-server --env-file=../../.env scripts/issue-invite.ts",
+    "invite:code": "tsx --conditions=react-server --env-file=../../.env scripts/issue-invite-code.ts",
     "credits:allowance": "tsx --conditions=react-server --env-file=../../.env scripts/grant-allowance.ts",
     "credits:grant-weekly": "tsx --conditions=react-server --env-file=../../.env scripts/grant-weekly-allowance.ts",
     "credits:release-held": "tsx --conditions=react-server --env-file=../../.env scripts/release-held-credits.ts",

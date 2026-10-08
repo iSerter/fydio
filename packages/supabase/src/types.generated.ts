@@ -455,6 +455,62 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"invite_code_redemptions": {
+                  Row: {
+                    "id": string,"invite_code_id": string,"redeemed_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "id"?: string,"invite_code_id": string,"redeemed_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "id"?: string,"invite_code_id"?: string,"redeemed_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "invite_code_redemptions_invite_code_id_fkey"
+      columns: ["invite_code_id"]
+isOneToOne: false
+      referencedRelation: "invite_codes"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "invite_code_redemptions_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: true
+      referencedRelation: "profile_reputation"
+      referencedColumns: ["profile_id"]
+    },{
+      foreignKeyName: "invite_code_redemptions_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: true
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"invite_codes": {
+                  Row: {
+                    "code_hash": string,"code_length": number,"created_at": string,"created_by": string | null,"expires_at": string | null,"id": string,"label": string | null,"max_uses": number,"revoked_at": string | null,"used_count": number
+                  }
+                  Insert: {
+                    "code_hash": string,"code_length": number,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string | null,"id"?: string,"label"?: string | null,"max_uses": number,"revoked_at"?: string | null,"used_count"?: number
+                  }
+                  Update: {
+                    "code_hash"?: string,"code_length"?: number,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string | null,"id"?: string,"label"?: string | null,"max_uses"?: number,"revoked_at"?: string | null,"used_count"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "invite_codes_created_by_fkey"
+      columns: ["created_by"]
+isOneToOne: false
+      referencedRelation: "profile_reputation"
+      referencedColumns: ["profile_id"]
+    },{
+      foreignKeyName: "invite_codes_created_by_fkey"
+      columns: ["created_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"invites": {
                   Row: {
                     "accepted_at": string | null,"accepted_by": string | null,"created_at": string,"email": string,"expires_at": string | null,"id": string,"invited_by": string | null,"revoked_at": string | null,"role": Database["public"]['Enums']["profile_role"],"token_hash": string
@@ -967,6 +1023,25 @@ isOneToOne: false
                           SetofOptions: {
         from: "*"
         to: "invites"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
+"claim_invite_code":
+{ Args: { "p_code_hash": string,"p_user_id": string }; Returns: {
+              "code_hash": string,
+"code_length": number,
+"created_at": string,
+"created_by": string | null,
+"expires_at": string | null,
+"id": string,
+"label": string | null,
+"max_uses": number,
+"revoked_at": string | null,
+"used_count": number
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "invite_codes"
         isOneToOne: true
         isSetofReturn: false
       } },

@@ -1,6 +1,6 @@
 # T11 — Limited-Use Invite Links (`/join/{invite-code}`)
 
-**Status:** Not started
+**Status:** Complete
 **Depends on:** T03
 **Blocks:** —
 **Brief reference:** §Include "Invite-only authentication" — extended with shareable, capped invitation links for growing a community one batch at a time.

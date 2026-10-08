@@ -21,7 +21,7 @@ describe('/api/health route handler', () => {
     expect(data.database).toBe('connected')
     expect(typeof data.migrationHead).toBe('string')
     expect(data.migrationHead).toMatch(/^00\d{2}$/)
-    expect(data.migrationHead).toBe('0030')
+    expect(data.migrationHead).toBe('0031')
     expect(typeof data.timestamp).toBe('string')
   })
 })

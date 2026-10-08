@@ -38,7 +38,7 @@ import { NextResponse, type NextRequest } from 'next/server'
  * the proxy's redirects outright (see `gate`), because the handler authorises itself and a 401 is
  * a better answer than a login page.
  */
-const PUBLIC_PREFIXES = ['/login', '/invite', '/auth'] as const
+const PUBLIC_PREFIXES = ['/login', '/invite', '/auth', '/join'] as const
 
 /** Reserved for admins. T09 builds the console; the gate lands with the gate itself. */
 const ADMIN_PREFIX = '/admin'
